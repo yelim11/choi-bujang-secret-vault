@@ -5,7 +5,7 @@ import { deploymentIdentity } from './deployment-identity.mjs';
 const root = resolve(import.meta.dirname, '..');
 const config = JSON.parse(await readFile(resolve(root, 'aleph.config.json'), 'utf8'));
 
-if (![2, 3, 4].includes(config.step)) {
+if (![2, 3, 4, 5].includes(config.step)) {
   throw new Error('현재 저장점 설정과 배포 식별 단계가 맞지 않습니다.');
 }
 
