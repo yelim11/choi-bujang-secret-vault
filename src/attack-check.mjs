@@ -28,12 +28,13 @@ export async function runAttackChecks(config) {
     }),
   ]);
 
-  let staticEmpty = false;
+  let staticClean = false;
   if (staticResponse.ok) {
     try {
       const data = await staticResponse.json();
-      staticEmpty = data?.sampleMarker === config.sampleMarker
-        && Array.isArray(data.notes) && data.notes.length === 0;
+      staticClean = Array.isArray(data?.notes)
+        && data.notes.length === 0
+        && Object.keys(data).length === 1;
     } catch {
       // Invalid JSON remains a failed self-check.
     }
@@ -52,9 +53,9 @@ export async function runAttackChecks(config) {
   return [
     {
       attackId: 'static_note_seed_removed',
-      expected: '공개 정적 data.json에 가상 메모가 남지 않음',
-      observed: staticEmpty
-        ? '공개 정적 data.json의 notes가 빈 배열로 확인됨'
+      expected: '공개 정적 data.json에는 빈 notes 배열만 남음',
+      observed: staticClean
+        ? '공개 정적 data.json에서 메모 시드와 1단계 확인 표시가 제거됨'
         : `공개 정적 자료 제거를 확인하지 못함 (HTTP ${staticResponse.status})`,
     },
     {
