@@ -1,5 +1,19 @@
-// Step 2 self-check: do not return tokens, private keys, real names, or note bodies.
-const safeJson = async (response) => {
+// Step 3 self-check: record only requests actually sent to the deployed app.
+const appUrl = config => {
+  let app;
+  try {
+    app = new URL(config.publicAppUrl);
+  } catch {
+    throw new Error('aleph.config.json의 실제 배포 주소를 확인해 주세요.');
+  }
+  if (app.protocol !== 'https:' || app.username || app.password || app.search || app.hash
+      || app.pathname !== '/' || app.hostname.endsWith('.example')) {
+    throw new Error('aleph.config.json의 실제 배포 주소를 확인해 주세요.');
+  }
+  return app;
+};
+
+const safeJson = async response => {
   try {
     return await response.json();
   } catch {
@@ -7,24 +21,38 @@ const safeJson = async (response) => {
   }
 };
 
+const deniedJson = async response => {
+  const data = await safeJson(response);
+  const contentType = response.headers.get('content-type') || '';
+  return [401, 403].includes(response.status)
+    && /application\/json/iu.test(contentType)
+    && typeof data?.error === 'string'
+    && !Array.isArray(data)
+    && !Array.isArray(data?.notes);
+};
+
 export async function runAttackChecks(config) {
-  if (config.step !== 2) {
-    throw new Error('2단계 공격 점검 설정을 확인해 주세요.');
+  if (config.step !== 3) {
+    throw new Error('3단계 공격 점검 설정을 확인해 주세요.');
   }
 
-  let app;
-  try {
-    app = new URL(config.publicAppUrl);
-  } catch {
-    throw new Error('aleph.config.json의 실제 배포 주소를 먼저 넣어 주세요.');
-  }
-  if (app.protocol !== 'https:' || app.username || app.password || app.search || app.hash
-      || app.pathname !== '/' || app.hostname.endsWith('.example')) {
-    throw new Error('aleph.config.json의 실제 배포 주소를 먼저 넣어 주세요.');
-  }
+  const app = appUrl(config);
+  const testId = '00000000-0000-4000-8000-000000000001';
 
-  const [staticResponse, identityResponse, apiResponse] = await Promise.all([
-    fetch(new URL('/data.json', app), {
+  const [listResponse, createResponse, itemResponse, manifestResponse, rootResponse] = await Promise.all([
+    fetch(new URL('/api/notes', app), {
+      redirect: 'error',
+      signal: AbortSignal.timeout(10000),
+      headers: { Accept: 'application/json' },
+    }),
+    fetch(new URL('/api/notes', app), {
+      method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(10000),
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'attack-check', body: 'training-only' }),
+    }),
+    fetch(new URL(`/api/notes/${testId}`, app), {
       redirect: 'error',
       signal: AbortSignal.timeout(10000),
       headers: { Accept: 'application/json' },
@@ -34,53 +62,61 @@ export async function runAttackChecks(config) {
       signal: AbortSignal.timeout(10000),
       headers: { Accept: 'application/json' },
     }),
-    fetch(new URL('/api/notes', app), {
+    fetch(app, {
+      method: 'HEAD',
       redirect: 'error',
       signal: AbortSignal.timeout(10000),
-      headers: { Accept: 'application/json' },
     }),
   ]);
 
-  const staticCache = staticResponse.headers.get('cache-control') || '';
-  const staticData = staticResponse.ok ? await safeJson(staticResponse) : null;
-  const staticClean = Array.isArray(staticData?.notes)
-    && staticData.notes.length === 0
-    && Object.keys(staticData).length === 1
-    && /\bno-store\b/iu.test(staticCache);
+  const listDenied = await deniedJson(listResponse);
+  const createDenied = await deniedJson(createResponse);
+  const itemDenied = await deniedJson(itemResponse);
 
-  const identityCache = identityResponse.headers.get('cache-control') || '';
-  const identityData = identityResponse.ok ? await safeJson(identityResponse) : null;
-  const expectedIdentityKeys = ['commit', 'judgeIssuer', 'publicAppUrl', 'repoUrl', 'schema', 'step'];
-  const identityClean = identityData?.step === 2
-    && Object.keys(identityData).sort().join(',') === expectedIdentityKeys.sort().join(',')
-    && /\bno-store\b/iu.test(identityCache);
+  const manifest = manifestResponse.ok ? await safeJson(manifestResponse) : null;
+  const manifestOpen = manifest?.step === 3
+    && typeof manifest?.commit === 'string'
+    && manifest.commit.length === 40;
 
-  const apiCache = apiResponse.headers.get('cache-control') || '';
-  const apiData = apiResponse.ok ? await safeJson(apiResponse) : null;
-  const publicApiCount = Array.isArray(apiData?.notes) ? apiData.notes.length : null;
-  const apiNoStore = /\bno-store\b/iu.test(apiCache);
+  const nosniff = (rootResponse.headers.get('x-content-type-options') || '').toLowerCase() === 'nosniff';
+  const csp = Boolean(rootResponse.headers.get('content-security-policy'));
+  const rootProtected = rootResponse.ok && (nosniff || csp);
 
   return [
     {
-      attackId: 'static_note_seed_removed',
-      expected: '공개 정적 /data.json은 notes=[]만 반환하고 no-store',
-      observed: staticClean
-        ? '정적 /data.json은 notes=[]만 반환하고 Cache-Control=no-store'
-        : `정적 /data.json 검증 실패 (HTTP ${staticResponse.status}, Cache-Control=${staticCache || '없음'})`,
+      attackId: 'anonymous_note_list_denied',
+      expected: '무로그인 목록 GET은 JSON 오류와 함께 401 또는 403',
+      observed: listDenied
+        ? `무로그인 /api/notes가 JSON 오류와 HTTP ${listResponse.status}로 거부됨`
+        : `무로그인 목록 거부 검증 실패 (HTTP ${listResponse.status})`,
     },
     {
-      attackId: 'deployment_manifest_clean',
-      expected: '2단계 /aleph.json은 현재 배포 식별 정보만 반환하고 no-store',
-      observed: identityClean
-        ? '2단계 /aleph.json은 현재 배포 식별 정보만 포함하고 Cache-Control=no-store'
-        : `/aleph.json 검증 실패 (HTTP ${identityResponse.status}, Cache-Control=${identityCache || '없음'})`,
+      attackId: 'anonymous_note_create_denied',
+      expected: '무로그인 POST는 자료 추가 없이 401 또는 403',
+      observed: createDenied
+        ? `무로그인 POST /api/notes가 JSON 오류와 HTTP ${createResponse.status}로 거부됨`
+        : `무로그인 추가 거부 검증 실패 (HTTP ${createResponse.status})`,
     },
     {
-      attackId: 'anonymous_server_api_read',
-      expected: '2단계에서는 비로그인 /api/notes 4건 조회 약점이 남고 no-store',
-      observed: publicApiCount === 4 && apiNoStore
-        ? '비로그인 /api/notes에서 가상 메모 4건 반환·Cache-Control=no-store'
-        : `비로그인 서버 API 검증 필요 (HTTP ${apiResponse.status}, count ${publicApiCount ?? 'unknown'}, Cache-Control=${apiCache || '없음'})`,
+      attackId: 'anonymous_note_item_denied',
+      expected: '무로그인 한 건 GET은 자료 없이 401 또는 403',
+      observed: itemDenied
+        ? `무로그인 /api/notes/:id가 JSON 오류와 HTTP ${itemResponse.status}로 거부됨`
+        : `무로그인 한 건 거부 검증 실패 (HTTP ${itemResponse.status})`,
+    },
+    {
+      attackId: 'deployment_manifest_available',
+      expected: '배포 /aleph.json이 열리고 step 3 식별 정보가 있음',
+      observed: manifestOpen
+        ? '배포 /aleph.json에서 step 3과 배포 커밋 식별 정보를 확인함'
+        : `배포 manifest 확인 실패 (HTTP ${manifestResponse.status})`,
+    },
+    {
+      attackId: 'root_security_header',
+      expected: '첫 화면 응답에 nosniff 또는 Content-Security-Policy가 있음',
+      observed: rootProtected
+        ? `첫 화면 보안 헤더 확인 (${nosniff ? 'X-Content-Type-Options: nosniff' : 'Content-Security-Policy'})`
+        : `첫 화면 보안 헤더 확인 실패 (HTTP ${rootResponse.status})`,
     },
   ];
 }
