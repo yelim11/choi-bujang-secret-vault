@@ -1,19 +1,12 @@
-# BYTE BACK 방어전 · 4단계 저장점
+# BYTE BACK 방어전 · 5단계 저장점
 
-현재 단계는 **4단계 「로그인해도 내 자료만 보이게 합니다」**입니다. 3단계의 Supabase Auth와 서버 토큰 검증을 유지하면서, Vercel 자료 API와 Supabase RLS가 모두 메모 소유자를 확인하도록 변경했습니다.
+현재 단계는 **5단계 「자료 요청을 서버 한곳으로 모읍니다」**입니다.
 
-## 현재 구현
+브라우저의 메모 CRUD는 모두 Vercel 서버 함수만 호출합니다. 로그인 요청도 `/api/auth` 서버 함수로 보내므로 현재 브라우저 정적 코드에는 Supabase publishable/anon 키를 넣지 않습니다. 4단계의 로그인 토큰 검증과 owner 검사는 그대로 유지합니다.
 
-- 서버는 기존 `src/verify-login.mjs`가 검증한 사용자 ID만 신뢰합니다.
-- URL·JSON 본문의 `userId`, `role`, `owner_id`는 권한 근거로 사용하지 않습니다.
-- 목록 GET은 `owner_id = 검증된 userId`인 메모만 반환합니다.
-- POST는 검증된 userId를 서버가 `owner_id`에 저장합니다.
-- 한 건 GET·PUT·DELETE는 기존 DB 행의 `owner_id`와 검증된 userId를 비교하고, 다르면 404로 기본 거부합니다.
-- PUT은 `{title,body}`만 허용하며 저장되는 `owner_id`는 다시 검증된 userId로 고정합니다.
+## 현재 경로
 
-## API 계약
-
-`aleph.config.json.allowedRoutes`에는 실제 메서드와 경로를 기록합니다.
+메모 API:
 
 - `GET /api/notes`
 - `POST /api/notes`
@@ -21,65 +14,48 @@
 - `PUT /api/notes/:id`
 - `DELETE /api/notes/:id`
 
-응답 형식:
+로그인·세션:
 
-- 목록 GET → `[{id,title,body}, ...]`
-- POST `{id?,title,body}` → `{id}`
-- 한 건 GET → `{id,title,body}`
-- PUT body → `{title,body}`
-- DELETE → `{id}`
-- 없는 메모와 타인 메모는 모두 404로 처리합니다.
+- `POST /api/auth`
 
-## A/B 시험 자료
+브라우저 메모 코드는 Supabase Data API를 직접 호출하지 않습니다.
 
-실제 DB에는 시험 계정 두 개와 가상 메모 4건을 연결했습니다.
+## 원본 자료 API
 
-- A 소유 메모: 3건
-- B 소유 메모: 1건
-- `owner_id IS NULL`: 0건
+`aleph.config.json.originalApiUrl`:
 
-실제 이메일 값은 Git에 저장하지 않습니다. 재실행용 템플릿은 `supabase/step4_assign_owners.sql`이며 실행 직전에 placeholder만 시험 계정 이메일로 바꿉니다.
+`https://naukmhaknwezkbxvkylc.supabase.co/rest/v1/notes`
 
-## RLS와 최소 권한
+query나 키·토큰이 없는 원본 자료 경로입니다.
 
-`supabase/step4_owner_rls.sql`을 실제 DB에 적용했습니다.
+## 직접 권한 회수
 
-권한 확인 결과:
+`supabase/step5_revoke_direct_access.sql`의 내용을 실제 DB에 적용했습니다.
 
-- `anon`: SELECT/INSERT/UPDATE/DELETE 모두 false
-- `authenticated`: SELECT/INSERT/UPDATE/DELETE만 true
+확인 결과:
 
-정책:
+- anon: SELECT/INSERT/UPDATE/DELETE 모두 false
+- authenticated: SELECT/INSERT/UPDATE/DELETE 모두 false
+- service_role: SELECT/INSERT/UPDATE/DELETE 모두 true
 
-- SELECT → `USING (auth.uid() = owner_id)`
-- INSERT → `WITH CHECK (auth.uid() = owner_id)`
-- UPDATE → `USING`과 `WITH CHECK` 모두 `auth.uid() = owner_id`
-- DELETE → `USING (auth.uid() = owner_id)`
-
-다른 테이블은 건드리지 않았습니다.
+따라서 브라우저 공개 키와 로그인 사용자 토큰으로 원본 Data API를 직접 읽거나 수정하는 테이블 권한은 없고, Vercel 서버 함수의 정상 CRUD는 유지됩니다.
 
 ## 100점 조건
 
-4단계에서도 다음 세 조건을 유지합니다.
+1. `/aleph.json.allowedRoutes`에 허용 경로를 기록
+2. 첫 화면에 `X-Content-Type-Options: nosniff`
+3. 현재 화면 코드에서 Supabase publishable/anon 키 제거
 
-1. 무로그인 `GET /api/notes` → JSON 오류와 HTTP 401/403
-2. 배포 주소의 `/aleph.json` → 현재 step 4 배포 식별 정보
-3. 첫 화면 `/` → `X-Content-Type-Options: nosniff`
+오래된 브라우저 캐시에 이전 JS가 남지 않도록 첫 화면, `auth-client.js`, `app.js`에는 `Cache-Control: no-store`도 적용합니다.
 
 ## 직접 확인
 
-- A 로그인 → A 메모만 보이는지 확인
-- B 로그인 → B 메모만 보이고 A 메모는 보이지 않는지 확인
-- 각 계정에서 자기 메모 추가·수정·삭제 확인
-- 상대 메모 UUID로 GET·PUT·DELETE 시 404 확인
-- POST/PUT 본문에 `owner_id`를 추가하면 허용 계약이 아니므로 400 확인
+- A 로그인 후 자기 메모 CRUD가 유지되는지 확인
+- B의 타인 자료 접근이 계속 거부되는지 확인
+- 무로그인 요청이 거부되는지 확인
+- 원본 Supabase Data API 직접 접근이 거부되는지 확인
+- 현재 배포 정적 코드에 Supabase 공개 키가 없는지 확인
 
-## 실행 및 제출
+## 제출
 
-```bash
-npm run build -- --local
-npm run test:r5
-npm run bundle
-```
-
-`bundle-notes.json`과 `artifacts/submission.json`은 Git에 커밋하지 않습니다. `npm run bundle`은 자기점검이며 심판 판정 자체는 아닙니다.
+`npm run bundle`은 학생 자기점검이며 실제 심판 판정 자체는 아닙니다. `bundle-notes.json`과 `artifacts/submission.json`은 Git에 커밋하지 않습니다.
