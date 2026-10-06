@@ -19,10 +19,14 @@ console.log(`${config.step}단계 공개 정적 data.json에는 메모 본문을
 
 if (!process.argv.includes('--local')) {
   const identity = deploymentIdentity(process.env, config);
+  if (config.step === 5) {
+    identity.allowedRoutes = Array.isArray(config.allowedRoutes) ? [...config.allowedRoutes] : [];
+    identity.originalApiUrl = config.originalApiUrl;
+  }
   await writeFile(
     resolve(root, 'public', 'aleph.json'),
     `${JSON.stringify(identity, null, 2)}\n`,
     'utf8',
   );
-  console.log('배포 저장소·커밋·주소를 public/aleph.json에 기록했습니다.');
+  console.log('배포 저장소·커밋·허용 경로·원본 API 주소를 public/aleph.json에 기록했습니다.');
 }
