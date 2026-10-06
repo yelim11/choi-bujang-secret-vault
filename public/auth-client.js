@@ -1,43 +1,111 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
+const STORAGE_KEY = 'byteback.session.v1';
+const listeners = new Set();
 
-const SUPABASE_URL = 'https://naukmhaknwezkbxvkylc.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_STdt8pIP6TrlWUGcLx0mwg_wIlnYZLW';
+function readStored() {
+  try {
+    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    return value?.accessToken && value?.refreshToken ? value : null;
+  } catch {
+    return null;
+  }
+}
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+function store(session) {
+  if (session) localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  else localStorage.removeItem(STORAGE_KEY);
+  for (const listener of listeners) listener(session ? { access_token: session.accessToken } : null);
+}
+
+async function authRequest(payload) {
+  const response = await fetch('/api/auth', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    cache: 'no-store',
+    credentials: 'omit',
+    redirect: 'error',
+  });
+
+  const data = await response.json().catch(() => null);
+  return { response, data };
+}
+
+async function ensureSession() {
+  let session = readStored();
+  if (!session) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  if (Number.isFinite(session.expiresAt) && session.expiresAt - now > 60) return session;
+
+  const { response, data } = await authRequest({
+    action: 'refresh',
+    refreshToken: session.refreshToken,
+  });
+
+  if (!response.ok || !data?.session) {
+    store(null);
+    return null;
+  }
+
+  session = data.session;
+  store(session);
+  return session;
+}
 
 export async function signIn(email, password) {
-  return supabase.auth.signInWithPassword({ email, password });
+  const { response, data } = await authRequest({ action: 'login', email, password });
+  if (!response.ok || !data?.session) {
+    return { data: { session: null }, error: new Error(data?.error || '로그인에 실패했습니다.') };
+  }
+
+  store(data.session);
+  return { data: { session: { access_token: data.session.accessToken } }, error: null };
 }
 
 export async function signOut() {
-  return supabase.auth.signOut({ scope: 'local' });
+  const current = readStored();
+  if (current) {
+    await authRequest({ action: 'logout' }).catch(() => {});
+  }
+  store(null);
+  return { error: null };
 }
 
 export async function currentSession() {
-  const { data, error } = await supabase.auth.getSession();
-  return { session: data?.session ?? null, error };
+  try {
+    const session = await ensureSession();
+    return {
+      session: session ? { access_token: session.accessToken } : null,
+      error: null,
+    };
+  } catch {
+    store(null);
+    return { session: null, error: new Error('로그인 상태를 확인할 수 없습니다.') };
+  }
 }
 
 export function onAuthChange(callback) {
-  return supabase.auth.onAuthStateChange((_event, session) => callback(session));
+  listeners.add(callback);
+  return () => listeners.delete(callback);
 }
 
 export async function apiRequest(path, init = {}) {
-  const { data, error } = await supabase.auth.getSession();
-  if (error || !data?.session?.access_token) {
-    throw new Error('로그인이 필요합니다.');
-  }
+  const session = await ensureSession();
+  if (!session?.accessToken) throw new Error('로그인이 필요합니다.');
 
   const headers = new Headers(init.headers || {});
   headers.set('Accept', 'application/json');
-  headers.set('Authorization', `Bearer ${data.session.access_token}`);
+  headers.set('Authorization', `Bearer ${session.accessToken}`);
   if (init.body) headers.set('Content-Type', 'application/json');
 
-  return fetch(path, {
+  const response = await fetch(path, {
     ...init,
     headers,
     cache: 'no-store',
     credentials: 'omit',
     redirect: 'error',
   });
+
+  if (response.status === 401) store(null);
+  return response;
 }
