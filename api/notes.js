@@ -117,6 +117,7 @@ export default async function handler(request, response) {
       .from('notes')
       .select('id,title,content')
       .eq('id', id)
+      .eq('owner_id', identity.userId)
       .maybeSingle();
 
     if (error) return response.status(502).json({ error: 'NOTES_BACKEND_ERROR' });
@@ -137,6 +138,7 @@ export default async function handler(request, response) {
       .from('notes')
       .update({ title, content })
       .eq('id', id)
+      .eq('owner_id', identity.userId)
       .select('id,title,content')
       .maybeSingle();
 
@@ -150,6 +152,7 @@ export default async function handler(request, response) {
       .from('notes')
       .delete()
       .eq('id', id)
+      .eq('owner_id', identity.userId)
       .select('id')
       .maybeSingle();
 
