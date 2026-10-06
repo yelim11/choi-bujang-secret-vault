@@ -32,6 +32,57 @@ Vercel 프로젝트의 Settings → Environment Variables에서 `SUPABASE_URL`�
 
 정상 배포 후 화면에는 가상 메모 네 카드가 보여야 하고, `/data.json`의 `notes`는 빈 배열이어야 합니다. 반면 `/api/notes`는 아직 인증 없이 호출 가능한 상태여야 합니다.
 
+
+
+## 2단계 제작 3 · 최신 파일 노출 확인 절차
+
+가상 메모의 실제 문장을 README나 스크립트에 다시 적으면 최신 저장소에 같은 문장이 남게 되므로, 검색할 문장은 Supabase의 학습용 가상 자료에서 확인한 뒤 **로컬 셸 변수에만 잠깐 넣고 커밋하지 않습니다.**
+
+현재 GitHub 최신 커밋에서 확인할 때는 가상 메모 문장 하나씩 아래처럼 검사합니다.
+
+```bash
+PATTERN='여기에 확인할 가상 메모 문장을 로컬에서만 입력'
+git grep -n -F -- "$PATTERN" HEAD -- .
+unset PATTERN
+```
+
+정상 결과는 **출력 없음**입니다. 같은 방법으로 가상 메모 네 문장을 각각 확인합니다. 서버 전용 키도 값 자체를 저장하지 않고, 비밀키 접두어를 셸에서 조합해 최신 커밋을 확인할 수 있습니다.
+
+```bash
+SECRET_PREFIX="sb_""secret_"
+git grep -n -F -- "$SECRET_PREFIX" HEAD -- .
+git grep -n -F -- 'SUPABASE_SECRET_KEY=' HEAD -- .
+unset SECRET_PREFIX
+```
+
+정상 결과는 두 검색 모두 **출력 없음**입니다.
+
+현재 Production의 공개 정적 파일도 배포 주소를 로컬 변수로 두고 확인합니다.
+
+```bash
+APP='https://choi-bujang-secret-vault-tkzf.vercel.app'
+curl -fsS "$APP/" -o /tmp/step2-index.html
+curl -fsS "$APP/data.json" -o /tmp/step2-data.json
+
+PATTERN='여기에 확인할 가상 메모 문장을 로컬에서만 입력'
+grep -n -F -- "$PATTERN" /tmp/step2-index.html /tmp/step2-data.json
+unset PATTERN
+```
+
+가상 메모 네 문장에 대해 반복했을 때 정상 결과는 **출력 없음**입니다. `/data.json`의 `notes`는 빈 배열이어야 합니다. 화면에서 보이는 네 카드의 내용은 정적 파일에 들어 있는 것이 아니라 공개 서버 API에서 실행 중에 받아오는 값입니다.
+
+### 현재 확인 기록
+
+- 최신 GitHub에서 가상 메모 문장 네 건을 각각 검색한 결과: 모두 0건.
+- 최신 GitHub에서 서버용 비밀키 형태 및 직접 대입 흔적을 검색한 결과: 0건.
+- Production 환경변수에는 `SUPABASE_URL`과 `SUPABASE_SECRET_KEY`가 등록되어 있으며, Secret 값 자체는 코드나 README에 기록하지 않음.
+- 현재 화면은 가상 메모 네 카드를 표시하고 `/data.json`은 메모가 없는 상태임.
+- `GET /api/notes`는 **아직 인증 없이 호출 가능**하며 가상 메모 네 건을 반환함. 이것은 3단계에서 막아야 할 남은 약점임.
+
+### 과거 노출에 대한 한계
+
+이번 단계는 **현재 최신 저장소와 현재 배포에서 정적 메모 시드와 서버 비밀값을 제거하는 작업**입니다. 1단계에서 이미 공개된 과거 Git 커밋과 과거 Vercel 배포 이력은 이 변경만으로 삭제되지 않습니다. 따라서 과거 노출까지 해소되었다고 표현하지 않습니다.
+
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
 [AGENTS.md](AGENTS.md)를 먼저 읽고 한 번에 한 제작 단위만 변경합니다. 비밀번호, 토큰, 서버 전용 키, 실제 개인정보를 코드·로그·답변·Git·제출 묶음에 넣지 않습니다. 3단계에서는 현재 공개된 서버 API 앞에 로그인 검사를 추가해야 합니다.
