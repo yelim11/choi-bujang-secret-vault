@@ -20,8 +20,15 @@ function serverConfig() {
   return { url: url.trim(), secretKey: secretKey.trim() };
 }
 
-export default async function handler(request, response) {
+function noStore(response) {
   response.setHeader('Cache-Control', 'no-store');
+  response.setHeader('CDN-Cache-Control', 'no-store');
+  response.setHeader('Vercel-CDN-Cache-Control', 'no-store');
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+}
+
+export default async function handler(request, response) {
+  noStore(response);
 
   if (request.method !== 'GET') {
     response.setHeader('Allow', 'GET');

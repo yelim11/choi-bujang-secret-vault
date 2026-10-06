@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
 import { runAttackChecks } from '../src/attack-check.mjs';
+import { validateBundleNotes } from '../scripts/bundle-notes-validation.mjs';
 
 const config = {
   step: 2,
@@ -29,7 +30,7 @@ test('step 2 build identity uses Vercel Git and deployment metadata', () => {
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
 });
 
-test('step 2 attack check sees clean static data and public API weakness', async () => {
+test('step 2 attack check verifies static, manifest, and public API cache controls', async () => {
   const originalFetch = globalThis.fetch;
   try {
     globalThis.fetch = async (url) => {
@@ -37,20 +38,56 @@ test('step 2 attack check sees clean static data and public API weakness', async
       if (path === '/data.json') {
         return new Response(JSON.stringify({ notes: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
         });
       }
-      return new Response(JSON.stringify({ notes: [{}, {}, {}, {}] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
+      if (path === '/aleph.json') {
+        return new Response(JSON.stringify({
+          schema: 'aleph.defense.deployment.v1',
+          step: 2,
+          repoUrl: 'https://github.com/student-a/aleph-defense',
+          commit: 'a'.repeat(40),
+          publicAppUrl: 'https://student-defense-123.vercel.app',
+          judgeIssuer: config.judgeIssuer,
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+        });
+      }
+      if (path === '/api/notes') {
+        return new Response(JSON.stringify({ notes: [{}, {}, {}, {}] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+        });
+      }
+      return new Response('', { status: 404 });
     };
 
     const results = await runAttackChecks(config);
-    assert.equal(results.length, 2);
-    assert.match(results[0].observed, /제거됨/u);
-    assert.match(results[1].observed, /4건/u);
+    assert.equal(results.length, 3);
+    assert.match(results[0].observed, /no-store/u);
+    assert.match(results[1].observed, /no-store/u);
+    assert.match(results[2].observed, /4건/u);
+    assert.match(results[2].observed, /no-store/u);
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('step 2 bundle explanation requires the complete three-line security story', () => {
+  const valid = [
+    '정적 data.json의 자료 본문을 코드 밖 Supabase DB로 이동했습니다.',
+    '브라우저는 /api/notes Vercel 서버 함수만 호출하고 SUPABASE_SECRET_KEY는 서버 전용으로 사용합니다.',
+    '/api/notes는 아직 비로그인 공개이며 과거 Git 커밋과 이전 Vercel 배포의 노출도 해소되지 않고 남아 있습니다.',
+  ].join('\n');
+
+  assert.equal(validateBundleNotes({ explanation: valid }, 2), valid);
+  assert.throws(
+    () => validateBundleNotes({ explanation: 'Supabase로 옮겼습니다.\n서버 함수를 붙였습니다.\n공개 API입니다.' }, 2),
+    /필수 내용 누락/u,
+  );
+  assert.throws(
+    () => validateBundleNotes({ explanation: '한 줄 설명만 있습니다.' }, 2),
+    /정확히 세 줄/u,
+  );
 });

@@ -95,6 +95,36 @@ unset PATTERN
 
 다시 확인할 때는 Production의 `/`, `/data.json`, `/api/notes` 세 경로를 확인합니다. 실제 서버 비밀값은 출력하거나 저장소에 기록하지 않습니다.
 
+
+
+## 2단계 완결성 가점 보강
+
+필수 방어 성공 뒤 제출 완결성을 높이기 위해 현재 Production의 공개 JSON 응답도 캐시되지 않도록 고정합니다.
+
+- `/data.json`: `notes: []`만 반환하며 `Cache-Control: no-store`
+- `/aleph.json`: 현재 2단계 배포 식별 정보만 반환하며 `Cache-Control: no-store`
+- `/api/notes`: 서버 함수 응답에 브라우저/CDN 캐시 방지 헤더와 `X-Content-Type-Options: nosniff` 적용
+- 화면의 서버 API 요청은 자격증명 없이, 리다이렉트를 허용하지 않고 JSON 응답만 요청
+
+### 제출 묶음 설명
+
+`bundle-notes.json`은 Git에 커밋하지 않고 제출 직전에만 만듭니다. 2단계의 `explanation`은 빈 줄을 제외하고 **정확히 세 줄**이며 다음 네 사실을 모두 포함해야 합니다.
+
+1. 정적 자료를 Supabase/DB로 이동함.
+2. 화면은 `/api/notes` Vercel 서버 함수를 사용하고 서버 전용 secret은 브라우저에 두지 않음.
+3. `/api/notes`는 아직 비로그인 공개라는 남은 약점.
+4. 과거 Git 커밋과 이전 Vercel 배포의 노출은 해소되지 않았음.
+
+예시:
+
+```json
+{
+  "explanation": "정적 data.json의 자료 본문을 코드 밖 Supabase DB로 이동했습니다.\n브라우저는 /api/notes Vercel 서버 함수만 호출하고 SUPABASE_SECRET_KEY는 서버 전용으로 사용합니다.\n/api/notes는 아직 비로그인 공개이며 과거 Git 커밋과 이전 Vercel 배포의 노출도 해소되지 않고 남아 있습니다."
+}
+```
+
+`npm run bundle`은 위 형식과 필수 의미를 제출 전에 검사합니다.
+
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
 [AGENTS.md](AGENTS.md)를 먼저 읽고 한 번에 한 제작 단위만 변경합니다. 비밀번호, 토큰, 서버 전용 키, 실제 개인정보를 코드·로그·답변·Git·제출 묶음에 넣지 않습니다. 3단계에서는 현재 공개된 서버 API 앞에 로그인 검사를 추가해야 합니다.
