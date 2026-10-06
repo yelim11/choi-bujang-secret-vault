@@ -8,7 +8,10 @@
     "audience": "authenticated",
     "jwksUrl": "https://naukmhaknwezkbxvkylc.supabase.co/auth/v1/.well-known/jwks.json"
   },
-  "allowedRoutes": [],
+  "allowedRoutes": [
+    "/api/notes",
+    "/api/notes/:id"
+  ],
   "originalApiUrl": null,
   "restoreRoute": null
 }
