@@ -54,6 +54,18 @@ function getRuntime() {
 
 const publicNote = row => ({ id: row.id, title: row.title, body: row.content });
 
+async function ownedNote(supabase, id, userId) {
+  const { data, error } = await supabase
+    .from('notes')
+    .select('id,title,content,owner_id')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) return { error };
+  if (!data || data.owner_id !== userId) return { data: null };
+  return { data };
+}
+
 export default async function handler(request, response) {
   noStore(response);
 
@@ -90,6 +102,7 @@ export default async function handler(request, response) {
       const title = noteText(body.title, 120);
       const content = noteText(body.body, 2000);
       const suppliedId = body.id ?? null;
+
       if (!title || !content
           || (suppliedId !== null && (typeof suppliedId !== 'string' || !UUID.test(suppliedId)))) {
         return response.status(400).json({ error: 'INVALID_NOTE' });
@@ -113,16 +126,10 @@ export default async function handler(request, response) {
   }
 
   if (request.method === 'GET') {
-    const { data, error } = await current.supabase
-      .from('notes')
-      .select('id,title,content')
-      .eq('id', id)
-      .eq('owner_id', identity.userId)
-      .maybeSingle();
-
-    if (error) return response.status(502).json({ error: 'NOTES_BACKEND_ERROR' });
-    if (!data) return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
-    return response.status(200).json(publicNote(data));
+    const owned = await ownedNote(current.supabase, id, identity.userId);
+    if (owned.error) return response.status(502).json({ error: 'NOTES_BACKEND_ERROR' });
+    if (!owned.data) return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
+    return response.status(200).json(publicNote(owned.data));
   }
 
   if (request.method === 'PUT') {
@@ -134,30 +141,42 @@ export default async function handler(request, response) {
     const content = noteText(body.body, 2000);
     if (!title || !content) return response.status(400).json({ error: 'INVALID_NOTE' });
 
+    const existing = await ownedNote(current.supabase, id, identity.userId);
+    if (existing.error) return response.status(502).json({ error: 'NOTES_BACKEND_ERROR' });
+    if (!existing.data) return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
+
     const { data, error } = await current.supabase
       .from('notes')
-      .update({ title, content })
+      .update({ title, content, owner_id: identity.userId })
       .eq('id', id)
       .eq('owner_id', identity.userId)
-      .select('id,title,content')
+      .select('id,title,content,owner_id')
       .maybeSingle();
 
     if (error) return response.status(502).json({ error: 'NOTES_BACKEND_ERROR' });
-    if (!data) return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
+    if (!data || data.owner_id !== identity.userId) {
+      return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
+    }
     return response.status(200).json(publicNote(data));
   }
 
   if (request.method === 'DELETE') {
+    const existing = await ownedNote(current.supabase, id, identity.userId);
+    if (existing.error) return response.status(502).json({ error: 'NOTES_BACKEND_ERROR' });
+    if (!existing.data) return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
+
     const { data, error } = await current.supabase
       .from('notes')
       .delete()
       .eq('id', id)
       .eq('owner_id', identity.userId)
-      .select('id')
+      .select('id,owner_id')
       .maybeSingle();
 
     if (error) return response.status(502).json({ error: 'NOTES_BACKEND_ERROR' });
-    if (!data) return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
+    if (!data || data.owner_id !== identity.userId) {
+      return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
+    }
     return response.status(200).json({ id: data.id });
   }
 

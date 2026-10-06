@@ -1,5 +1,5 @@
 {
-  "step": 3,
+  "step": 4,
   "repoUrl": "https://github.com/yelim11/choi-bujang-secret-vault",
   "publicAppUrl": "https://choi-bujang-secret-vault-tkzf.vercel.app",
   "judgeIssuer": "https://aleph-judge-production.up.railway.app/defense/judge",
@@ -9,8 +9,11 @@
     "jwksUrl": "https://naukmhaknwezkbxvkylc.supabase.co/auth/v1/.well-known/jwks.json"
   },
   "allowedRoutes": [
-    "/api/notes",
-    "/api/notes/:id"
+    "GET /api/notes",
+    "POST /api/notes",
+    "GET /api/notes/:id",
+    "PUT /api/notes/:id",
+    "DELETE /api/notes/:id"
   ],
   "originalApiUrl": null,
   "restoreRoute": null

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
 import { runAttackChecks } from '../src/attack-check.mjs';
 import { validateBundleNotes } from '../scripts/bundle-notes-validation.mjs';
 
 const config = {
-  step: 3,
+  step: 4,
   judgeIssuer: 'https://aleph-judge-production.up.railway.app/defense/judge',
   publicAppUrl: 'https://student-defense.vercel.app',
   identityProvider: {
@@ -13,7 +14,13 @@ const config = {
     audience: 'authenticated',
     jwksUrl: 'https://student.supabase.co/auth/v1/.well-known/jwks.json',
   },
-  allowedRoutes: ['/api/notes', '/api/notes/:id'],
+  allowedRoutes: [
+    'GET /api/notes',
+    'POST /api/notes',
+    'GET /api/notes/:id',
+    'PUT /api/notes/:id',
+    'DELETE /api/notes/:id',
+  ],
 };
 
 const env = {
@@ -24,10 +31,10 @@ const env = {
   VERCEL_URL: 'student-defense-123.vercel.app',
 };
 
-test('step 3 deployment identity uses current Vercel metadata', () => {
+test('step 4 deployment identity uses current Vercel metadata', () => {
   assert.deepEqual(deploymentIdentity(env, config), {
     schema: 'aleph.defense.deployment.v1',
-    step: 3,
+    step: 4,
     repoUrl: 'https://github.com/student-a/aleph-defense',
     commit: 'a'.repeat(40),
     publicAppUrl: 'https://student-defense-123.vercel.app',
@@ -35,14 +42,22 @@ test('step 3 deployment identity uses current Vercel metadata', () => {
   });
 });
 
-test('step 3 self-check covers anonymous denial and all three bonus conditions', async () => {
+test('step 4 API source enforces verified owner on item operations', async () => {
+  const source = await readFile(new URL('../api/notes.js', import.meta.url), 'utf8');
+  assert.match(source, /ownedNote\(current\.supabase, id, identity\.userId\)/u);
+  assert.match(source, /\.eq\('owner_id', identity\.userId\)/u);
+  assert.doesNotMatch(source, /body\.owner_id/u);
+  assert.match(source, /update\(\{ title, content, owner_id: identity\.userId \}\)/u);
+});
+
+test('step 4 self-check covers anonymous denial and all three bonus conditions', async () => {
   const originalFetch = globalThis.fetch;
   try {
-    globalThis.fetch = async (url, init = {}) => {
+    globalThis.fetch = async url => {
       const path = new URL(String(url)).pathname;
 
       if (path === '/aleph.json') {
-        return new Response(JSON.stringify({ step: 3, commit: 'a'.repeat(40) }), {
+        return new Response(JSON.stringify({ step: 4, commit: 'a'.repeat(40) }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -66,12 +81,11 @@ test('step 3 self-check covers anonymous denial and all three bonus conditions',
     };
 
     const results = await runAttackChecks(config);
-    assert.equal(results.length, 5);
+    assert.equal(results.length, 4);
     assert.match(results[0].observed, /401/u);
     assert.match(results[1].observed, /401/u);
-    assert.match(results[2].observed, /401/u);
-    assert.match(results[3].observed, /step 3/u);
-    assert.match(results[4].observed, /nosniff/u);
+    assert.match(results[2].observed, /step 4/u);
+    assert.match(results[3].observed, /nosniff/u);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -79,10 +93,14 @@ test('step 3 self-check covers anonymous denial and all three bonus conditions',
 
 test('bundle explanation remains exactly three non-empty lines', () => {
   const explanation = [
-    'Supabase Auth 로그인과 로그아웃을 붙이고 서버에서 토큰을 검증합니다.',
-    '로그인 사용자는 Vercel API를 통해 가상 메모를 추가·수정·삭제합니다.',
-    '3단계는 로그인만 확인하며 메모별 소유자 권한 검사는 4단계에서 추가합니다.',
+    '4단계에서 서버 API의 읽기·추가·수정·삭제를 검증된 사용자 owner_id로 제한했습니다.',
+    'Supabase notes 테이블은 authenticated CRUD만 허용하고 RLS가 auth.uid()와 owner_id를 비교합니다.',
+    '무로그인 JSON 401, /aleph.json, 첫 화면 nosniff 가점 조건도 그대로 유지합니다.',
   ].join('\n');
-  assert.equal(validateBundleNotes({ explanation }, 3), explanation);
-  assert.throws(() => validateBundleNotes({ explanation: '한 줄로만 작성한 충분히 긴 설명입니다.' }, 3), /정확히 세 줄/u);
+
+  assert.equal(validateBundleNotes({ explanation }, 4), explanation);
+  assert.throws(
+    () => validateBundleNotes({ explanation: '한 줄로만 작성한 충분히 긴 설명입니다.' }, 4),
+    /정확히 세 줄/u,
+  );
 });

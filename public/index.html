@@ -47,7 +47,7 @@
 </head>
 <body>
   <main>
-    <div class="eyebrow">BYTE BACK · 3단계 진짜 로그인</div>
+    <div class="eyebrow">BYTE BACK · 4단계 내 자료만</div>
     <h1>로그인 자료실</h1>
     <p>Supabase Auth로 로그인하고 서버가 토큰을 다시 검증한 뒤에만 가상 메모 API를 사용합니다.</p>
 
@@ -76,8 +76,7 @@
       </section>
 
       <section class="panel notice">
-        3단계에서는 로그인 여부를 확인하고 새 메모의 owner_id를 서버가 확인한 사용자 ID로 기록합니다.
-        메모별 소유자 권한 검사는 다음 단계에서 추가합니다.
+        4단계에서는 서버와 DB가 모두 메모 소유자를 확인합니다. 로그인해도 본인 owner_id의 메모만 읽고 수정·삭제할 수 있습니다.
       </section>
 
       <section class="panel" id="workspace" hidden>

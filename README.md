@@ -1,70 +1,78 @@
-# BYTE BACK 방어전 · 3단계 저장점
+# BYTE BACK 방어전 · 4단계 저장점
 
-현재 단계는 **3단계 「진짜 로그인을 붙입니다」**입니다. 2단계의 서버 DB 구조를 유지하면서 Supabase Auth 이메일·비밀번호 로그인/로그아웃을 붙였고, Vercel 자료 API가 틀의 `src/verify-login.mjs`로 로그인 토큰을 검증합니다.
+현재 단계는 **4단계 「로그인해도 내 자료만 보이게 합니다」**입니다. 3단계의 Supabase Auth와 서버 토큰 검증을 유지하면서, Vercel 자료 API와 Supabase RLS가 모두 메모 소유자를 확인하도록 변경했습니다.
 
 ## 현재 구현
 
-- 브라우저: Supabase 공식 SDK로 이메일·비밀번호 로그인/로그아웃
-- 공개 설정: Project URL과 publishable key만 브라우저에 사용
-- 서버 설정: `SUPABASE_SECRET_KEY`는 Vercel Production 환경변수에만 존재
-- 서버 인증: `src/verify-login.mjs`는 수정하지 않고 그대로 사용
-- 메모 DB: `public.notes`, `id uuid`, `owner_id uuid`, RLS 활성화
-- 직접 DB 권한: `anon`·`authenticated`는 읽기/CRUD 불가, 서버 역할만 CRUD
-- 정적 `data.json`: 메모 없음
-
-## 로그인 발급자
-
-`aleph.config.json.identityProvider`:
-
-- issuer: `https://naukmhaknwezkbxvkylc.supabase.co/auth/v1`
-- audience: `authenticated`
-- JWKS: issuer의 `/.well-known/jwks.json`
-
-서버는 브라우저가 보내는 `userId`나 `role`을 권한 판단에 사용하지 않고 검증된 토큰의 사용자 ID만 사용합니다.
+- 서버는 기존 `src/verify-login.mjs`가 검증한 사용자 ID만 신뢰합니다.
+- URL·JSON 본문의 `userId`, `role`, `owner_id`는 권한 근거로 사용하지 않습니다.
+- 목록 GET은 `owner_id = 검증된 userId`인 메모만 반환합니다.
+- POST는 검증된 userId를 서버가 `owner_id`에 저장합니다.
+- 한 건 GET·PUT·DELETE는 기존 DB 행의 `owner_id`와 검증된 userId를 비교하고, 다르면 404로 기본 거부합니다.
+- PUT은 `{title,body}`만 허용하며 저장되는 `owner_id`는 다시 검증된 userId로 고정합니다.
 
 ## API 계약
 
-`aleph.config.json.allowedRoutes`:
+`aleph.config.json.allowedRoutes`에는 실제 메서드와 경로를 기록합니다.
 
-- `/api/notes`
-- `/api/notes/:id`
+- `GET /api/notes`
+- `POST /api/notes`
+- `GET /api/notes/:id`
+- `PUT /api/notes/:id`
+- `DELETE /api/notes/:id`
 
-동작:
+응답 형식:
 
-- `GET /api/notes`: 로그인 사용자의 `owner_id`에 해당하는 메모 배열
-- `POST /api/notes`: `{id,title,body}`, id 생략 시 서버가 UUID 생성 후 `{id}` 반환
-- `GET /api/notes/:id`: `{id,title,body}`
-- `PUT /api/notes/:id`: 제목·본문 수정
-- `DELETE /api/notes/:id`: 삭제, 이후 같은 id GET은 404
+- 목록 GET → `[{id,title,body}, ...]`
+- POST `{id?,title,body}` → `{id}`
+- 한 건 GET → `{id,title,body}`
+- PUT body → `{title,body}`
+- DELETE → `{id}`
+- 없는 메모와 타인 메모는 모두 404로 처리합니다.
 
-POST의 `owner_id`는 서버가 확인한 사용자 ID로만 저장합니다. **3단계에서는 한 건 GET/PUT/DELETE의 owner 검사를 아직 하지 않습니다.** 따라서 로그인한 B가 A의 메모 id를 알면 접근할 수 있는 BOLA 약점은 4단계에서 막습니다.
+## A/B 시험 자료
 
-## 100점 조건 점검
+실제 DB에는 시험 계정 두 개와 가상 메모 4건을 연결했습니다.
 
-현재 Production에서 직접 확인한 결과:
+- A 소유 메모: 3건
+- B 소유 메모: 1건
+- `owner_id IS NULL`: 0건
 
-1. 무로그인 `GET /api/notes` → **HTTP 401 + JSON `{"error":"UNAUTHORIZED"}`**
-2. `/aleph.json` → **HTTP 200, step 3 배포 식별 정보 확인**
-3. 첫 화면 `/` → **`X-Content-Type-Options: nosniff` 확인**
+실제 이메일 값은 Git에 저장하지 않습니다. 재실행용 템플릿은 `supabase/step4_assign_owners.sql`이며 실행 직전에 placeholder만 시험 계정 이메일로 바꿉니다.
 
-추가로 무로그인 `POST /api/notes`와 무로그인 `GET /api/notes/:id`도 JSON 401로 거부됨을 확인했습니다.
+## RLS와 최소 권한
 
-## DB 마이그레이션
+`supabase/step4_owner_rls.sql`을 실제 DB에 적용했습니다.
 
-재실행 기록은 `supabase/step3_auth_crud.sql`에 있습니다. 기존 가상 메모 본문은 Git에 넣지 않고 DB에만 유지합니다.
+권한 확인 결과:
 
-## 아직 직접 확인하지 못한 것
+- `anon`: SELECT/INSERT/UPDATE/DELETE 모두 false
+- `authenticated`: SELECT/INSERT/UPDATE/DELETE만 true
 
-현재 Supabase Auth 사용자 수가 0명이므로 실제 A 이메일·비밀번호 로그인 후 브라우저 CRUD E2E는 아직 실행하지 않았습니다. A 계정은 Supabase Dashboard의 Authentication → Users에서 직접 만들고, 비밀번호는 채팅이나 Git에 남기지 않습니다.
+정책:
 
-A 계정이 준비되면 다음 순서로 확인합니다.
+- SELECT → `USING (auth.uid() = owner_id)`
+- INSERT → `WITH CHECK (auth.uid() = owner_id)`
+- UPDATE → `USING`과 `WITH CHECK` 모두 `auth.uid() = owner_id`
+- DELETE → `USING (auth.uid() = owner_id)`
 
-1. 시크릿 창에서 무로그인 상태로 자료가 보이지 않는지 확인
-2. A 로그인
-3. 가상 메모 추가
-4. 같은 메모 수정
-5. 삭제
-6. 로그아웃 후 다시 자료가 보이지 않는지 확인
+다른 테이블은 건드리지 않았습니다.
+
+## 100점 조건
+
+4단계에서도 다음 세 조건을 유지합니다.
+
+1. 무로그인 `GET /api/notes` → JSON 오류와 HTTP 401/403
+2. 배포 주소의 `/aleph.json` → 현재 step 4 배포 식별 정보
+3. 첫 화면 `/` → `X-Content-Type-Options: nosniff`
+
+## 직접 확인
+
+- A 로그인 → A 메모만 보이는지 확인
+- B 로그인 → B 메모만 보이고 A 메모는 보이지 않는지 확인
+- 각 계정에서 자기 메모 추가·수정·삭제 확인
+- 상대 메모 UUID로 GET·PUT·DELETE 시 404 확인
+- POST/PUT 본문에 `owner_id`를 추가하면 허용 계약이 아니므로 400 확인
 
 ## 실행 및 제출
 
@@ -74,6 +82,4 @@ npm run test:r5
 npm run bundle
 ```
 
-`bundle-notes.json`과 `artifacts/submission.json`은 Git에 커밋하지 않습니다. `npm run bundle`은 자기점검이며 운영 심판의 판정 자체는 아닙니다.
-
-다음 4단계에서는 현재 의도적으로 남겨 둔 로그인 사용자 간 메모 소유자 검사를 추가합니다.
+`bundle-notes.json`과 `artifacts/submission.json`은 Git에 커밋하지 않습니다. `npm run bundle`은 자기점검이며 심판 판정 자체는 아닙니다.

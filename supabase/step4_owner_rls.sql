@@ -1,3 +1,6 @@
+-- 4단계 소유자 RLS/최소 권한
+-- public.notes 한 테이블만 대상으로 하며 실제 DB에 적용 완료한 정의입니다.
+
 begin;
 
 alter table public.notes enable row level security;
@@ -40,26 +43,7 @@ using (auth.uid() = owner_id);
 
 commit;
 
--- Before/after verification
-select grantee, privilege_type
-from information_schema.role_table_grants
-where table_schema = 'public'
-  and table_name = 'notes'
-  and grantee in ('anon', 'authenticated')
-order by grantee, privilege_type;
-
-select
-  has_table_privilege('anon', 'public.notes', 'select') as anon_select,
-  has_table_privilege('anon', 'public.notes', 'insert') as anon_insert,
-  has_table_privilege('anon', 'public.notes', 'update') as anon_update,
-  has_table_privilege('anon', 'public.notes', 'delete') as anon_delete,
-  has_table_privilege('authenticated', 'public.notes', 'select') as auth_select,
-  has_table_privilege('authenticated', 'public.notes', 'insert') as auth_insert,
-  has_table_privilege('authenticated', 'public.notes', 'update') as auth_update,
-  has_table_privilege('authenticated', 'public.notes', 'delete') as auth_delete;
-
-select policyname, cmd, roles, qual, with_check
-from pg_policies
-where schemaname = 'public'
-  and tablename = 'notes'
-order by policyname;
+-- 적용 후 기대:
+-- anon SELECT/INSERT/UPDATE/DELETE = false
+-- authenticated SELECT/INSERT/UPDATE/DELETE = true
+-- 실제 행 접근은 RLS의 auth.uid() = owner_id 조건으로 본인 행만 허용.
