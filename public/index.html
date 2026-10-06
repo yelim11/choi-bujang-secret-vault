@@ -3,34 +3,138 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BYTE BACK | 서버 자료실</title>
+  <title>BYTE BACK | 로그인 자료실</title>
   <style>
     :root { color-scheme: dark; font-family: system-ui, sans-serif; }
     body { margin: 0; min-height: 100vh; background: #101a28; color: #ecf4ff; }
     main { max-width: 760px; margin: 0 auto; padding: 44px 22px 64px; }
     .eyebrow { color: #8ad8df; font-size: 14px; font-weight: 700; letter-spacing: .08em; }
     h1 { margin: 16px 0; font-size: clamp(30px, 7vw, 48px); line-height: 1.2; }
+    h2 { margin: 0 0 14px; font-size: 20px; }
     p { font-size: 17px; line-height: 1.7; color: #bfd0e5; }
-    .notice { margin: 26px 0; padding: 18px; border: 1px solid #d8a45f; border-radius: 14px; color: #fff0d5; background: #6b492844; }
+    .panel, .notice { margin: 22px 0; padding: 18px; border-radius: 14px; }
+    .panel { border: 1px solid #51667c; background: #172638; }
+    .notice { border: 1px solid #d8a45f; color: #fff0d5; background: #6b492844; }
+    form { display: grid; gap: 10px; }
+    label { display: grid; gap: 6px; color: #d9e7f5; font-weight: 650; }
+    input, button { box-sizing: border-box; width: 100%; border-radius: 10px; font: inherit; }
+    input { border: 1px solid #657b91; padding: 11px 12px; background: #0e1926; color: #fff; }
+    button { border: 0; padding: 11px 14px; font-weight: 750; cursor: pointer; background: #8ad8df; color: #10202a; }
+    button.secondary { margin-top: 10px; background: #344a60; color: #f3f8ff; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .status { min-height: 24px; margin: 10px 0 0; font-size: 14px; color: #bfd0e5; }
+    .status.error { color: #ffb5aa; }
     ul { list-style: none; display: grid; gap: 12px; padding: 0; }
     li { border: 1px solid #51667c; border-radius: 14px; padding: 17px 19px; background: #1a2a3d; }
     strong { display: block; font-size: 18px; margin-bottom: 5px; }
     li span { color: #bfd0e5; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <main>
-    <div class="eyebrow">BYTE BACK · 2단계 자료 분리</div>
-    <h1>서버 자료실</h1>
-    <p>가상 메모는 더 이상 공개 정적 파일에 들어 있지 않고, 서버 함수가 학습용 DB에서 읽어 옵니다.</p>
-    <div class="notice">아직 로그인 검사가 없습니다. 따라서 누구나 공개 API 주소를 호출할 수 있으며, 이 약점은 다음 단계에서 막아야 합니다.</div>
+    <div class="eyebrow">BYTE BACK · 3단계 로그인</div>
+    <h1>로그인 자료실</h1>
+    <p>Supabase Auth의 이메일·비밀번호 로그인을 사용합니다. 비밀번호와 로그인 토큰은 직접 만들거나 코드에 저장하지 않습니다.</p>
+
+    <section class="panel" aria-labelledby="login-title">
+      <h2 id="login-title">로그인</h2>
+      <form id="login-form">
+        <label>이메일
+          <input id="email" name="email" type="email" autocomplete="username" required>
+        </label>
+        <label>비밀번호
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button id="login-button" type="submit">로그인</button>
+      </form>
+      <div id="signed-in" hidden>
+        <p>로그인된 상태입니다.</p>
+        <button id="logout-button" class="secondary" type="button">로그아웃</button>
+      </div>
+      <p id="auth-status" class="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <div class="notice">제작 1에서는 로그인 화면만 붙였습니다. 자료 API 인증 검사는 제작 2에서 적용합니다.</div>
     <ul id="notes" aria-live="polite"><li>가상 자료를 불러오는 중입니다.</li></ul>
   </main>
-  <!-- Step 2: note bodies are loaded at runtime from the server API, not embedded here. -->
+
   <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+    const SUPABASE_URL = 'https://naukmhaknwezkbxvkylc.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_STdt8pIP6TrlWUGcLx0mwg_wIlnYZLW';
+    const auth = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    });
+
+    const form = document.querySelector('#login-form');
+    const signedIn = document.querySelector('#signed-in');
+    const status = document.querySelector('#auth-status');
+    const loginButton = document.querySelector('#login-button');
+    const logoutButton = document.querySelector('#logout-button');
     const list = document.querySelector('#notes');
+
+    function renderAuth(session, message = '') {
+      const loggedIn = Boolean(session?.user);
+      form.hidden = loggedIn;
+      signedIn.hidden = !loggedIn;
+      status.classList.remove('error');
+      status.textContent = message || (loggedIn ? '로그인 성공' : '로그인이 필요합니다.');
+    }
+
+    async function refreshAuth() {
+      const { data, error } = await auth.auth.getSession();
+      if (error) {
+        renderAuth(null);
+        status.classList.add('error');
+        status.textContent = error.message;
+        return;
+      }
+      renderAuth(data.session);
+    }
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      loginButton.disabled = true;
+      status.classList.remove('error');
+      status.textContent = '로그인 확인 중…';
+      const formData = new FormData(form);
+      const email = String(formData.get('email') || '').trim();
+      const password = String(formData.get('password') || '');
+      const { data, error } = await auth.auth.signInWithPassword({ email, password });
+      loginButton.disabled = false;
+      if (error) {
+        status.classList.add('error');
+        status.textContent = error.message;
+        return;
+      }
+      form.reset();
+      renderAuth(data.session, '로그인 성공');
+    });
+
+    logoutButton.addEventListener('click', async () => {
+      logoutButton.disabled = true;
+      const { error } = await auth.auth.signOut();
+      logoutButton.disabled = false;
+      if (error) {
+        status.classList.add('error');
+        status.textContent = error.message;
+        return;
+      }
+      renderAuth(null, '로그아웃했습니다.');
+    });
+
+    auth.auth.onAuthStateChange((_event, session) => renderAuth(session));
+    await refreshAuth();
+
     try {
-      const response = await fetch('/api/notes', { cache: 'no-store', credentials: 'omit', redirect: 'error', headers: { Accept: 'application/json' } });
+      const response = await fetch('/api/notes', {
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+        headers: { Accept: 'application/json' },
+      });
       if (!response.ok) throw new Error('서버 자료를 읽을 수 없습니다.');
       const data = await response.json();
       if (!Array.isArray(data.notes)) throw new Error('자료 형식이 맞지 않습니다.');
