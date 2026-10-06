@@ -1,4 +1,4 @@
-// Step 4 self-check: only record requests actually sent to the deployed app.
+// Step 5 self-check: only record requests actually sent to the deployed app.
 const appUrl = config => {
   let app;
   try {
@@ -32,8 +32,8 @@ const deniedJson = async response => {
 };
 
 export async function runAttackChecks(config) {
-  if (config.step !== 4) {
-    throw new Error('4단계 공격 점검 설정을 확인해 주세요.');
+  if (config.step !== 5) {
+    throw new Error('5단계 공격 점검 설정을 확인해 주세요.');
   }
 
   const app = appUrl(config);
@@ -66,9 +66,12 @@ export async function runAttackChecks(config) {
   const itemDenied = await deniedJson(itemResponse);
 
   const manifest = manifestResponse.ok ? await safeJson(manifestResponse) : null;
-  const manifestOpen = manifest?.step === 4
+  const manifestOpen = manifest?.step === 5
     && typeof manifest?.commit === 'string'
-    && manifest.commit.length === 40;
+    && manifest.commit.length === 40
+    && Array.isArray(manifest?.allowedRoutes)
+    && manifest.allowedRoutes.length > 0
+    && manifest?.originalApiUrl === config.originalApiUrl;
 
   const nosniff = (rootResponse.headers.get('x-content-type-options') || '').toLowerCase() === 'nosniff';
   const csp = Boolean(rootResponse.headers.get('content-security-policy'));
@@ -91,9 +94,9 @@ export async function runAttackChecks(config) {
     },
     {
       attackId: 'deployment_manifest_available',
-      expected: '배포 /aleph.json이 열리고 step 4 식별 정보가 있음',
+      expected: '배포 /aleph.json에 step 5, allowedRoutes, originalApiUrl이 있음',
       observed: manifestOpen
-        ? '배포 /aleph.json에서 step 4와 배포 커밋 식별 정보를 확인함'
+        ? '배포 /aleph.json에서 step 5와 허용 경로·원본 API 주소를 확인함'
         : `배포 manifest 확인 실패 (HTTP ${manifestResponse.status})`,
     },
     {
