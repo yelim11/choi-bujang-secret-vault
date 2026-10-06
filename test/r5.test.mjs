@@ -84,5 +84,5 @@ test('bundle explanation remains exactly three non-empty lines', () => {
     '3단계는 로그인만 확인하며 메모별 소유자 권한 검사는 4단계에서 추가합니다.',
   ].join('\n');
   assert.equal(validateBundleNotes({ explanation }, 3), explanation);
-  assert.throws(() => validateBundleNotes({ explanation: '한 줄 설명' }, 3), /정확히 세 줄/u);
+  assert.throws(() => validateBundleNotes({ explanation: '한 줄로만 작성한 충분히 긴 설명입니다.' }, 3), /정확히 세 줄/u);
 });
