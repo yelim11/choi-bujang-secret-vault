@@ -97,6 +97,18 @@ unset PATTERN
 
 
 
+
+
+## 제작 1 SQL 파일
+
+2단계 제작 1의 재실행 가능한 스키마·권한 정의는 `supabase/step2_notes.sql`에 둡니다. 이 파일에는 메모 본문을 넣지 않습니다.
+
+- `owner_id uuid`를 미리 두고 `auth.users` 외래키는 걸지 않음
+- RLS 활성화
+- `public`, `anon`, `authenticated`의 테이블·시퀀스 권한 회수
+- 서버 함수가 읽는 `service_role`에만 SELECT 허용
+- 가상 메모 네 건의 평문 seed는 GitHub 최신 파일에 남기지 않고 Supabase SQL Editor에서만 입력
+
 ## 2단계 완결성 가점 보강
 
 필수 방어 성공 뒤 제출 완결성을 높이기 위해 현재 Production의 공개 JSON 응답도 캐시되지 않도록 고정합니다.
