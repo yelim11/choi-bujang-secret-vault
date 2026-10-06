@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Step 2: only the server runtime may read the database secret.
 function serverConfig() {
   const url = process.env.SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY;

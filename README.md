@@ -1,8 +1,8 @@
 # BYTE BACK 방어전 시작 틀 R5
 
-## 현재 상태 · 2단계 제작 2
+## 현재 상태 · 2단계 저장점
 
-1단계에서 공개되던 가상 메모 네 건을 학습용 Supabase DB로 옮겼습니다. 최신 정적 `data.json`과 `public/data.json`에는 메모 본문을 두지 않습니다.
+2단계 저장점 기준으로 1단계에서 공개되던 가상 메모 네 건을 학습용 Supabase DB로 옮겼습니다. 최신 정적 `data.json`과 `public/data.json`에는 메모 본문을 두지 않습니다.
 
 화면은 Vercel 서버 함수 `/api/notes`를 호출하고, 서버 함수만 Supabase의 `notes` 테이블을 읽습니다. 서버 함수는 다음 두 값을 Vercel 환경변수에서 읽습니다.
 
@@ -82,6 +82,18 @@ unset PATTERN
 ### 과거 노출에 대한 한계
 
 이번 단계는 **현재 최신 저장소와 현재 배포에서 정적 메모 시드와 서버 비밀값을 제거하는 작업**입니다. 1단계에서 이미 공개된 과거 Git 커밋과 과거 Vercel 배포 이력은 이 변경만으로 삭제되지 않습니다. 따라서 과거 노출까지 해소되었다고 표현하지 않습니다.
+
+
+
+## 2단계 저장점
+
+- 단계: `2`
+- 저장소: `https://github.com/yelim11/choi-bujang-secret-vault`
+- Production: `https://choi-bujang-secret-vault-tkzf.vercel.app`
+- 정상 확인: 화면에는 가상 메모 네 카드가 보이고 `/data.json`은 빈 배열임.
+- 남은 약점: `GET /api/notes`는 아직 비로그인으로 호출 가능함.
+
+다시 확인할 때는 Production의 `/`, `/data.json`, `/api/notes` 세 경로를 확인합니다. 실제 서버 비밀값은 출력하거나 저장소에 기록하지 않습니다.
 
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
