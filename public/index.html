@@ -55,7 +55,7 @@
       <p id="auth-status" class="status" role="status" aria-live="polite"></p>
     </section>
 
-    <div class="notice">제작 1에서는 로그인 화면만 붙였습니다. 자료 API 인증 검사는 제작 2에서 적용합니다.</div>
+    <div class="notice">자료 API는 서버에서 로그인 토큰을 다시 검증합니다. 브라우저의 userId·role 값은 권한 판단에 사용하지 않습니다.</div>
     <ul id="notes" aria-live="polite"><li>가상 자료를 불러오는 중입니다.</li></ul>
   </main>
 
@@ -83,15 +83,55 @@
       status.textContent = message || (loggedIn ? '로그인 성공' : '로그인이 필요합니다.');
     }
 
+    let session = null;
+
+    async function loadNotes() {
+      if (!session?.access_token) {
+        list.replaceChildren(Object.assign(document.createElement('li'), { textContent: '로그인 후 자료를 볼 수 있습니다.' }));
+        return;
+      }
+      try {
+        const response = await fetch('/api/notes', {
+          cache: 'no-store',
+          credentials: 'omit',
+          redirect: 'error',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+        const data = await response.json().catch(() => null);
+        if (response.status === 401) throw new Error('로그인 토큰이 없거나 유효하지 않습니다.');
+        if (!response.ok || !Array.isArray(data?.notes)) throw new Error(data?.error || '서버 자료를 읽을 수 없습니다.');
+        list.replaceChildren(...data.notes.map(note => {
+          const item = document.createElement('li');
+          const title = document.createElement('strong');
+          const content = document.createElement('span');
+          title.textContent = note.title;
+          content.textContent = note.content;
+          item.append(title, content);
+          return item;
+        }));
+      } catch (error) {
+        const item = document.createElement('li');
+        item.textContent = error instanceof Error ? error.message : '서버 자료를 읽을 수 없습니다.';
+        list.replaceChildren(item);
+      }
+    }
+
     async function refreshAuth() {
       const { data, error } = await auth.auth.getSession();
       if (error) {
+        session = null;
         renderAuth(null);
         status.classList.add('error');
         status.textContent = error.message;
+        await loadNotes();
         return;
       }
-      renderAuth(data.session);
+      session = data.session;
+      renderAuth(session);
+      await loadNotes();
     }
 
     form.addEventListener('submit', async event => {
@@ -110,7 +150,9 @@
         return;
       }
       form.reset();
-      renderAuth(data.session, '로그인 성공');
+      session = data.session;
+      renderAuth(session, '로그인 성공');
+      await loadNotes();
     });
 
     logoutButton.addEventListener('click', async () => {
@@ -122,36 +164,17 @@
         status.textContent = error.message;
         return;
       }
+      session = null;
       renderAuth(null, '로그아웃했습니다.');
+      await loadNotes();
     });
 
-    auth.auth.onAuthStateChange((_event, session) => renderAuth(session));
+    auth.auth.onAuthStateChange((_event, nextSession) => {
+      session = nextSession;
+      renderAuth(session);
+      void loadNotes();
+    });
     await refreshAuth();
-
-    try {
-      const response = await fetch('/api/notes', {
-        cache: 'no-store',
-        credentials: 'omit',
-        redirect: 'error',
-        headers: { Accept: 'application/json' },
-      });
-      if (!response.ok) throw new Error('서버 자료를 읽을 수 없습니다.');
-      const data = await response.json();
-      if (!Array.isArray(data.notes)) throw new Error('자료 형식이 맞지 않습니다.');
-      list.replaceChildren(...data.notes.map(note => {
-        const item = document.createElement('li');
-        const title = document.createElement('strong');
-        const content = document.createElement('span');
-        title.textContent = note.title;
-        content.textContent = note.content;
-        item.append(title, content);
-        return item;
-      }));
-    } catch (error) {
-      const item = document.createElement('li');
-      item.textContent = error instanceof Error ? error.message : '서버 자료를 읽을 수 없습니다.';
-      list.replaceChildren(item);
-    }
   </script>
 </body>
 </html>
