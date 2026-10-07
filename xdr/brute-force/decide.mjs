@@ -14,7 +14,9 @@ const countOf = (alert) => {
   return Number.isFinite(value) && value >= 0 ? value : null;
 };
 
-const isT1110 = (alert) => Array.isArray(alert?.rule?.mitre) && alert.rule.mitre.includes('T1110');
+const isT1110 = (alert) => Array.isArray(alert?.rule?.mitre)
+  && alert.rule.mitre.some((value) => typeof value === 'string'
+    && (value === 'T1110' || value.startsWith('T1110.')));
 
 const actionFor = (confidence) => confidence >= 0.85
   ? 'block'
