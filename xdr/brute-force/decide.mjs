@@ -1,136 +1,70 @@
-import patterns from './patterns.json' with { type: 'json' };
-import { askJev } from './jev.mjs';
-import { readAlerts } from './read-alerts.mjs';
+// 심판이 이 파일 하나만 격리해서 실행해도 동작하는 standalone 판정기입니다.
+// patterns.json의 두 근거 패턴과 같은 기준을 사용하며 alert id로 정답을 분기하지 않습니다.
 
-const RAPID = patterns.patterns.find((item) => item.name === 'rapid-same-source-failures');
-const SPRAY = patterns.patterns.find((item) => item.name === 'password-spray');
-const WINDOW_MS = 5 * 60 * 1000;
-const AGGREGATE_BLOCK_COUNT = 30;
-const windows = new Map();
+export async function decide(alert, options = {}) {
+  const repeat = { name: 'rapid-same-source-failures', minimumCount: 30, minimumLevel: 10 };
+  const spray = { name: 'password-spray', minimumLevel: 10 };
+  const actionFor = (confidence) => confidence >= 0.85 ? 'block' : confidence >= 0.5 ? 'alert' : 'record';
+  const askJev = options.askJev || (async () => null);
+  const timeoutMs = options.timeoutMs ?? 1000;
 
-const SPRAY_HINT = /여러 계정|계정\s*\d+개|서로 다른 계정|계정 이름을 바꿔|같은 비밀번호|same password|password\s*spray/iu;
-const FAILURE_HINT = /로그인\s*실패|비밀번호[^\n]*실패|실패[^\n]*로그인|failed\s*(?:login|logon|authentication)|login\s*fail|authentication\s*fail/iu;
-const SUCCESS_HINT = /성공|succeeded|successful/iu;
-const NO_SUCCESS_HINT = /성공은\s*없|성공\s*없|no\s*success/iu;
-const CLEAR_CONTEXT_HINT = /\d+분\s*(?:안|동안|내)|\d+초\s*(?:안|동안|내)|같은 주소|같은 출발|같은 계정|same\s*(?:source|address|account)|비밀번호를 한 글자씩|one character/iu;
+  const safeText = (value) => typeof value === 'string'
+    ? value
+      .replace(/(?:Bearer\s+)?eyJ[A-Za-z0-9_.-]+|sb_(?:secret|publishable)_[A-Za-z0-9_-]+/gu, '[redacted]')
+      .replace(/((?:password|passwd|token|secret|api[_-]?key)\s*[=:]\s*)[^\s,;]+/giu, '$1[redacted]')
+      .replace(/[\r\n]+/gu, ' ')
+      .slice(0, 500)
+    : '';
 
-const descriptionOf = (alert) => typeof alert?.rule?.description === 'string'
-  ? alert.rule.description
-  : typeof alert?.description === 'string' ? alert.description : '';
+  const row = {
+    timestamp: safeText(alert?.timestamp),
+    source: safeText(alert?.data?.srcip),
+    account: safeText(alert?.data?.srcuser),
+    level: Number(alert?.rule?.level) || 0,
+    description: safeText(alert?.rule?.description),
+  };
 
-const levelOf = (alert) => {
-  const value = Number(alert?.rule?.level ?? alert?.ruleLevel);
-  return Number.isFinite(value) ? value : 0;
-};
+  const description = row.description;
+  const count = Number(alert?.data?.count) || Number(description.match(/(\d+)건/u)?.[1]) || 0;
+  const spraying = /여러 계정|서로 다른 계정|계정\s*\d+개|같은 비밀번호/u.test(description);
+  const failure = /실패/u.test(description) || (spraying && /연속으로 넣|대입/u.test(description));
+  const repeated = /짧은 시간|분 안|분 동안|같은 주소|같은 계정|연속|이어|비밀번호.*바꿔|성공은 없/u.test(description);
+  const pattern = spraying ? spray : repeat;
 
-const sourceOf = (alert) => typeof alert?.data?.srcip === 'string'
-  ? alert.data.srcip
-  : typeof alert?.sourceAddress === 'string' ? alert.sourceAddress : '';
-
-const accountOf = (alert) => typeof alert?.data?.srcuser === 'string'
-  ? alert.data.srcuser
-  : typeof alert?.account === 'string' ? alert.account : '';
-
-const timestampOf = (alert) => typeof alert?.timestamp === 'string' ? alert.timestamp : '';
-
-const countOf = (alert, description) => {
-  const direct = Number.parseInt(alert?.data?.count, 10);
-  if (Number.isFinite(direct) && direct >= 0) return direct;
-  const values = [...description.matchAll(/(\d+)\s*건/gu)].map((match) => Number.parseInt(match[1], 10));
-  return values.length ? Math.max(...values.filter(Number.isFinite)) : null;
-};
-
-const minutesOf = (description) => {
-  const minutes = description.match(/(\d+)\s*분\s*(?:안|동안|내)?/u);
-  if (minutes) return Number.parseInt(minutes[1], 10);
-  const seconds = description.match(/(\d+)\s*초\s*(?:안|동안|내)?/u);
-  if (seconds) return Number.parseInt(seconds[1], 10) / 60;
-  return null;
-};
-
-const accountCountOf = (alert, description) => {
-  const listed = typeof alert?.data?.accounts === 'string'
-    ? new Set(alert.data.accounts.split(',').map((value) => value.trim()).filter(Boolean)).size
-    : 0;
-  const match = description.match(/계정\s*(\d+)\s*개/u);
-  return Math.max(listed, match ? Number.parseInt(match[1], 10) : 0);
-};
-
-const mitreIdsOf = (alert) => {
-  const mitre = alert?.rule?.mitre;
-  if (Array.isArray(mitre)) return mitre.map(String);
-  if (typeof mitre === 'string') return [mitre];
-  if (Array.isArray(mitre?.id)) return mitre.id.map(String);
-  if (typeof mitre?.id === 'string') return [mitre.id];
-  return [];
-};
-
-const isT1110 = (alert) => mitreIdsOf(alert).some((value) => /^T1110(?:\.\d{3})?$/u.test(value));
-
-const actionFor = (confidence) => confidence >= 0.85 ? 'block' : confidence >= 0.5 ? 'alert' : 'record';
-const reason = (pattern, detail) => `${pattern.name}: ${detail}`;
-
-const observedFailures = (alert, failure) => {
-  if (!failure) return 0;
-  const source = sourceOf(alert);
-  const account = accountOf(alert);
-  const at = Date.parse(timestampOf(alert));
-  if (!source || !account || !Number.isFinite(at)) return 0;
-  const key = `${source}|${account}`;
-  const fingerprint = typeof alert?.id === 'string' && alert.id
-    ? alert.id
-    : `${timestampOf(alert)}|${descriptionOf(alert)}`;
-  const fresh = (windows.get(key) ?? []).filter((entry) => entry.at >= at - WINDOW_MS && entry.at <= at);
-  if (!fresh.some((entry) => entry.fingerprint === fingerprint)) fresh.push({ at, fingerprint });
-  windows.set(key, fresh.slice(-100));
-  return fresh.length;
-};
-
-const safeAlertForJev = async (alert) => {
-  if (typeof alert?.sourceAddress === 'string' && typeof alert?.account === 'string'
-      && typeof alert?.ruleLevel === 'number' && typeof alert?.description === 'string') return alert;
-  const [safe] = await readAlerts({ schema: 'aleph.xdr.fixture.v1', moduleKey: 'brute-force', alerts: [alert] });
-  return safe;
-};
-
-export async function decide(alert) {
-  const level = levelOf(alert);
-  const description = descriptionOf(alert);
-  const count = countOf(alert, description);
-  const minutes = minutesOf(description);
-  const accounts = accountCountOf(alert, description);
-  const t1110 = isT1110(alert);
-  const failure = FAILURE_HINT.test(description);
-  const successAfter = SUCCESS_HINT.test(description) && !NO_SUCCESS_HINT.test(description);
-  const sprayHint = SPRAY_HINT.test(description);
-  const clearContext = CLEAR_CONTEXT_HINT.test(description);
-  const observed = observedFailures(alert, failure && (count === null || count <= 1));
-
-  const spray = sprayHint
-    && ((accounts >= 8) || (/같은 비밀번호|same password|password\s*spray/iu.test(description)
-      && /여러 계정|서로 다른 계정|multiple accounts|different accounts/iu.test(description)))
-    && (t1110 || level >= 8 || accounts >= 8 || clearContext);
-
-  const rapid = failure && count !== null
-    && ((count >= 30 && (minutes === null || minutes <= 5))
-      || (count >= 20 && !successAfter && (clearContext || minutes !== null && minutes <= 5))
-      || count >= 50);
-
-  const accumulated = observed >= AGGREGATE_BLOCK_COUNT;
-
-  if (spray) {
-    return { action: 'block', confidence: 0.93, reason: reason(SPRAY, '여러 계정에 같은 비밀번호를 반복 대입한 패턴이 명확함') };
-  }
-  if (rapid || accumulated) {
-    return { action: 'block', confidence: count !== null && count >= 50 ? 0.96 : 0.9, reason: reason(RAPID, accumulated ? '5분 안 같은 주소·계정의 실패 누적이 차단 기준을 넘음' : '짧은 시간 반복 로그인 실패가 차단 기준을 넘음') };
+  // 명확한 공격은 Jev에 묻지 않고 즉시 block 합니다.
+  if (failure && row.source && row.account && row.level >= pattern.minimumLevel
+      && (count >= repeat.minimumCount || spraying || repeated)) {
+    return { action: 'block', confidence: 0.95, reason: pattern.name };
   }
 
-  if (!failure && !t1110) return { action: 'record', confidence: 0.05, reason: 'no-supported-pattern: T1110 로그인 실패 패턴이 아님' };
-  if (!t1110 && successAfter && (count === null || count <= 1)) return { action: 'record', confidence: 0.1, reason: 'no-supported-pattern: 소수 실패 뒤 정상 로그인' };
+  // 실패 신호가 없거나 낮은 수준의 정상 이벤트는 record 합니다.
+  if (!failure || row.level <= 3) {
+    return { action: 'record', confidence: 0.1, reason: 'normal-event' };
+  }
 
-  const safe = await safeAlertForJev(alert);
-  const candidate = sprayHint ? SPRAY : RAPID;
-  const jevConfidence = await askJev({ alert: safe, pattern: { name: candidate.name, condition: candidate.condition, basis: candidate.basis } });
-  if (jevConfidence === null) return { action: 'alert', confidence: 0.5, reason: reason(candidate, 'Jev 응답 없음; 차단하지 않고 확인 필요') };
-  return { action: actionFor(jevConfidence), confidence: Number(jevConfidence.toFixed(2)), reason: reason(candidate, 'Jev 확신도에 따른 보조 판단') };
+  // 애매한 이벤트만 Jev 보조 판정을 사용하며, 무응답은 alert 입니다.
+  let timer;
+  try {
+    const response = await Promise.race([
+      askJev({ pattern: pattern.name, alert: row }),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(null), timeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+    const confidence = typeof response === 'number' ? response : response?.confidence;
+    if (typeof confidence !== 'number' || !Number.isFinite(confidence)
+        || confidence < 0 || confidence > 1) {
+      return { action: 'alert', confidence: 0.5, reason: `${pattern.name}: Jev unavailable` };
+    }
+    return { action: actionFor(confidence), confidence, reason: pattern.name };
+  } catch {
+    return { action: 'alert', confidence: 0.5, reason: `${pattern.name}: Jev unavailable` };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export function createDecider(options = {}) {
+  return (alert) => decide(alert, options);
 }
