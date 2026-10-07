@@ -1,0 +1,17 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "brute-force",
+  "mitre": "T1110",
+  "patterns": [
+    {
+      "name": "rapid-same-source-failures",
+      "condition": "짧은 시간 같은 출발 주소에서 같은 계정 또는 한 계정에 반복 로그인 실패가 누적되고 Wazuh 수준과 실패 건수가 충분히 높음",
+      "basis": "MITRE ATT&CK T1110/T1110.001은 반복적 로그인 실패를 무차별 대입·password guessing 탐지 신호로 설명한다."
+    },
+    {
+      "name": "password-spray",
+      "condition": "같은 출발 주소에서 같은 비밀번호 또는 같은 로그인 서명을 여러 계정에 연속 적용한 실패가 나타남",
+      "basis": "MITRE ATT&CK T1110.003은 하나 또는 소수의 비밀번호를 여러 계정에 시도하는 password spraying을 정의한다."
+    }
+  ]
+}

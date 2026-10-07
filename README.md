@@ -48,6 +48,24 @@ query나 키·토큰이 없는 원본 자료 경로입니다.
 
 오래된 브라우저 캐시에 이전 JS가 남지 않도록 첫 화면, `auth-client.js`, `app.js`에는 `Cache-Control: no-store`도 적용합니다.
 
+## 보너스 XDR · 무차별 로그인 공격
+
+기존 `src/decider.mjs` 규칙은 변경하지 않고 `xdr/brute-force` 부품을 추가했습니다.
+
+- `read-alerts.mjs`: Wazuh 경보에서 시각·출발 주소·계정·규칙 수준·설명만 안전하게 추출
+- `patterns.json`: MITRE ATT&CK T1110 기반 `rapid-same-source-failures`, `password-spray` 패턴
+- `decide.mjs`: 명확한 공격은 `block`, 애매한 건 Jev 보조 판정, 정상 이벤트는 `record`
+- `bridge.mjs`: 고확신도 T1110 차단 후보만 만료 시각·근거 경보 번호를 붙여 `deny-rules.json`으로 연결
+- `alerts.log`: block/alert 이벤트를 한 줄 JSON으로 기록
+
+재실행:
+
+```bash
+npm run xdr:run -- brute-force
+```
+
+현재 시험 경보 결과는 `block 10 / alert 9 / record 9`이며, 정상 이벤트를 block 한 경우는 0건입니다. 이 결과는 수업용 fixture를 로컬 실행한 자기점검 결과이며 운영 심판 판정을 뜻하지 않습니다.
+
 ## 직접 확인
 
 - A 로그인 후 자기 메모 CRUD가 유지되는지 확인

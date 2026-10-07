@@ -1,0 +1,106 @@
+{
+  "schema": "aleph.xdr.ztna-deny-rules.v1",
+  "moduleKey": "brute-force",
+  "rules": [
+    {
+      "ruleId": "xdr.brute-force.deny-203-0-113-10",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.10"
+      },
+      "expiresAt": "2026-09-27T00:27:40.000Z",
+      "evidenceAlertIds": [
+        "bf-01",
+        "bf-02"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute-force.deny-198-51-100-20",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "198.51.100.20"
+      },
+      "expiresAt": "2026-09-27T00:29:02.000Z",
+      "evidenceAlertIds": [
+        "bf-03"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute-force.deny-192-0-2-30",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "192.0.2.30"
+      },
+      "expiresAt": "2026-09-27T00:35:11.000Z",
+      "evidenceAlertIds": [
+        "bf-04"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute-force.deny-203-0-113-21",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.21"
+      },
+      "expiresAt": "2026-09-27T00:36:00.000Z",
+      "evidenceAlertIds": [
+        "bf-05"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute-force.deny-198-51-100-44",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "198.51.100.44"
+      },
+      "expiresAt": "2026-09-27T02:17:15.000Z",
+      "evidenceAlertIds": [
+        "bf-06"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute-force.deny-203-0-113-15",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.15"
+      },
+      "expiresAt": "2026-09-27T02:20:40.000Z",
+      "evidenceAlertIds": [
+        "bf-07"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute-force.deny-192-0-2-18",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "192.0.2.18"
+      },
+      "expiresAt": "2026-09-27T04:25:02.000Z",
+      "evidenceAlertIds": [
+        "bf-08"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute-force.deny-198-51-100-8",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "198.51.100.8"
+      },
+      "expiresAt": "2026-09-27T05:37:18.000Z",
+      "evidenceAlertIds": [
+        "bf-09"
+      ]
+    },
+    {
+      "ruleId": "xdr.brute-force.deny-203-0-113-40",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.40"
+      },
+      "expiresAt": "2026-09-27T06:55:01.000Z",
+      "evidenceAlertIds": [
+        "bf-10"
+      ]
+    }
+  ]
+}
