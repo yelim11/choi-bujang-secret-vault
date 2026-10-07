@@ -1,0 +1,10 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "patterns": [
+    {"name":"query-expression-injection","condition":"요청 인자의 결합 SQL 조회/조건식 또는 명령 구분자. 높은 경보 수준과 같은 주소 반복 요청을 함께 확인한다.","evidence":"MITRE ATT&CK T1190: 공개 앱의 SQL 주입/명령 실행 취약점을 악용할 수 있다.","source":"https://attack.mitre.org/techniques/T1190/"},
+    {"name":"script-injection","condition":"스크립트 태그/이벤트 실행 표식의 반복 삽입. 수업명이나 단순 설명 단어만으로 차단하지 않는다.","evidence":"MITRE ATT&CK T1190: 공개 웹 앱의 입력 취약점을 악용하는 시도를 탐지한다.","source":"https://attack.mitre.org/techniques/T1190/"},
+    {"name":"path-traversal","condition":"../ 또는 인코딩된 상위 경로 이동이 반복된다. 일회성 검색/경로 단어는 차단하지 않는다.","evidence":"MITRE ATT&CK T1190: 공개 앱의 경로 순회 취약점 악용도 포함한다.","source":"https://attack.mitre.org/techniques/T1190/"}
+  ],
+  "implementationThresholds":{"minimumLevel":10,"minimumRepeatedCount":2,"ruleTtlMinutes":15},
+  "thresholdNote":"이 수치는 공식 MITRE 수치가 아닌 실습 구현 기준이다."
+}
