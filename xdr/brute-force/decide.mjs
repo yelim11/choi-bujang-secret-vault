@@ -106,7 +106,7 @@ export async function decide(alert) {
   const clearContext = CLEAR_CONTEXT_HINT.test(description);
   const observed = observedFailures(alert, failure && (count === null || count <= 1));
 
-  const spray = failure && sprayHint
+  const spray = sprayHint
     && ((accounts >= 8) || (/같은 비밀번호|same password|password\s*spray/iu.test(description)
       && /여러 계정|서로 다른 계정|multiple accounts|different accounts/iu.test(description)))
     && (t1110 || level >= 8 || accounts >= 8 || clearContext);
