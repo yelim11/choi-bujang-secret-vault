@@ -1,0 +1,84 @@
+{
+  "schema": "aleph.xdr.ztna-deny-rules.v1",
+  "moduleKey": "web-injection",
+  "rules": [
+    {
+      "ruleId": "xdr.web-injection.deny-203-0-113-10",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.10"
+      },
+      "expiresAt": "2026-09-27T00:28:20.000Z",
+      "evidenceAlertIds": [
+        "wi-01",
+        "wi-02"
+      ]
+    },
+    {
+      "ruleId": "xdr.web-injection.deny-198-51-100-15",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "198.51.100.15"
+      },
+      "expiresAt": "2026-09-27T00:31:04.000Z",
+      "evidenceAlertIds": [
+        "wi-03"
+      ]
+    },
+    {
+      "ruleId": "xdr.web-injection.deny-192-0-2-15",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "192.0.2.15"
+      },
+      "expiresAt": "2026-09-27T01:17:11.000Z",
+      "evidenceAlertIds": [
+        "wi-04"
+      ]
+    },
+    {
+      "ruleId": "xdr.web-injection.deny-203-0-113-18",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.18"
+      },
+      "expiresAt": "2026-09-27T01:33:33.000Z",
+      "evidenceAlertIds": [
+        "wi-05"
+      ]
+    },
+    {
+      "ruleId": "xdr.web-injection.deny-198-51-100-18",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "198.51.100.18"
+      },
+      "expiresAt": "2026-09-27T02:22:08.000Z",
+      "evidenceAlertIds": [
+        "wi-06"
+      ]
+    },
+    {
+      "ruleId": "xdr.web-injection.deny-192-0-2-21",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "192.0.2.21"
+      },
+      "expiresAt": "2026-09-27T04:19:19.000Z",
+      "evidenceAlertIds": [
+        "wi-07"
+      ]
+    },
+    {
+      "ruleId": "xdr.web-injection.deny-203-0-113-22",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.22"
+      },
+      "expiresAt": "2026-09-27T05:41:02.000Z",
+      "evidenceAlertIds": [
+        "wi-08"
+      ]
+    }
+  ]
+}
