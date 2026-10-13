@@ -2,7 +2,7 @@ name: S08 ownership and defense regression
 
 on:
   push:
-    branches: [main]
+    branches: [main, s08-trusted-zone-bridge]
   workflow_dispatch:
 
 permissions:
@@ -28,7 +28,10 @@ jobs:
         run: npm run fixture:7
       - name: Stage 5 and 8 API ownership regression
         run: npm run test:r5
+      - name: Stage 8 trusted owner and instructor zone regression
+        run: npm run test:zone
       - name: Create ignored submission explanation
+        if: github.ref == 'refs/heads/main'
         run: |
           cat > bundle-notes.json <<'JSON'
           {
@@ -36,17 +39,21 @@ jobs:
           }
           JSON
       - name: Generate self-check submission JSON
+        if: github.ref == 'refs/heads/main'
         run: npm run bundle
       - name: Validate self-check outcomes
+        if: github.ref == 'refs/heads/main'
         run: |
-          node --input-type=module -e "import fs from 'node:fs'; const b=JSON.parse(fs.readFileSync('artifacts/submission.json','utf8')); if(b.step!==8 || !b.policyRules.includes('resource_boundary') || b.changedFiles.length > 10 || b.attackAttempts.some(a=>a.observed.includes('검증 실패') || a.observed.includes('확인 실패'))){throw Error('Submission self-check failed')} console.log('S08 bundle self-check OK:', b.attackAttempts.length, 'requests')"
+          node --input-type=module -e "import fs from 'node:fs'; const b=JSON.parse(fs.readFileSync('artifacts/submission.json','utf8')); if(b.step!==8 || !b.policyRules.includes('resource_zone') || b.changedFiles.length > 10 || b.attackAttempts.some(a=>a.observed.includes('검증 실패') || a.observed.includes('확인 실패'))){throw Error('Submission self-check failed')} console.log('S08 bundle self-check OK:', b.attackAttempts.length, 'requests')"
       - name: Preserve submission JSON as workflow artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v6
         with:
           name: aleph-stage8-submission
           path: artifacts/submission.json
           if-no-files-found: error
       - name: Verify deployed 8th-stage zones and notices gate
+        if: github.ref == 'refs/heads/main'
         run: |
           node --input-type=module <<'JS'
           import assert from 'node:assert/strict';
@@ -66,12 +73,13 @@ jobs:
           assert.ok(manifest.allowedRoutes.some(r => r.service === 'notices'
             && r.method === 'GET' && r.pathPattern === '/api/notices'
             && r.zone === 'class-notices'));
-          assert.equal(manifest.allowedRoutes.some(r => r.service === 'notices'
-            && ['PUT', 'POST', 'DELETE'].includes(r.method)), false);
+          assert.ok(manifest.allowedRoutes.some(r => r.service === 'notices'
+            && r.method === 'PUT' && r.zone === 'instructor-materials'
+            && r.pathPattern === '/api/notices/:id'));
           const anonymous = await fetch(app + '/api/notices');
           assert.equal(anonymous.status, 401, 'Anonymous notice list was not blocked');
-          const write = await fetch(app + '/api/notices', { method: 'PUT' });
-          assert.equal(write.status, 405, 'Notice writes were not blocked');
+          const write = await fetch(app + '/api/notices/00000000-0000-4000-8000-000000000001', { method: 'PUT' });
+          assert.equal(write.status, 401, 'Unauthenticated notice write was not blocked');
           console.log('Deployed S08 zones OK:', manifest.commit.slice(0, 12),
             '/ notices anonymous=', anonymous.status, '/ write=', write.status);
           JS
