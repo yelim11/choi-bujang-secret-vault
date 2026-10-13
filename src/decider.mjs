@@ -33,7 +33,13 @@ function knownNotesRoute(request) {
   }
   // export 등 기능 경로는 메모 ID로 취급하지 않습니다.
   const id = /^\/notes\/([^/?#]+)$/u.exec(path)?.[1];
-  if (!id || ['export', 'import', 'admin', 'notices'].includes(id)) return false;
+  // 실서비스 메모 ID는 API와 동일한 UUID 규약을 사용합니다.
+  // 임의 구역명(other, foreign 등)이나 기능명(export)을 :id로 받지 않습니다.
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+  const fixtureDemo = id === 'demo' && request.classId === 'class_fixture' &&
+    request.projectId === 'project_fixture' &&
+    request.subjectId === 'learner_fixture' && request.signals?.source === 'judge_fixture';
+  if (!id || (!uuid.test(id) && !fixtureDemo)) return false;
   return ['GET', 'PUT', 'DELETE'].includes(method) &&
     route === `${method} /notes/:id`;
 }
