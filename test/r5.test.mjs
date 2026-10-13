@@ -212,3 +212,12 @@ test('S08 deployed route manifest specifies distinct verified resource zones', a
   assert.equal(new Set(live.allowedRoutes.map(r => r.method + ' ' + r.pathPattern)).size,
     live.allowedRoutes.length);
 });
+
+
+test('S08 Vercel rewrite preserves item id for dynamic note and notice paths', async () => {
+  const vercel = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
+  assert.deepEqual(vercel.rewrites, [
+    { source: '/api/notes/:id', destination: '/api/notes?id=:id' },
+    { source: '/api/notices/:id', destination: '/api/notices?id=:id' },
+  ]);
+});
