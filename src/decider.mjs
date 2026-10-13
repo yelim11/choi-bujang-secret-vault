@@ -59,7 +59,7 @@ function knownNotesRoute(request) {
   const id = /^\/notes\/([^/?#]+)$/u.exec(path)?.[1];
   // 실서비스 메모 ID는 API와 동일한 UUID 규약을 사용합니다.
   // 임의 구역명(other, foreign 등)이나 기능명(export)을 :id로 받지 않습니다.
-  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+  // ID 형식 검사는 API에서 별도로 적용하며, 판정기에서는 소유권 없는 UUID를 허용하지 않습니다.
   const fixtureDemo = id === 'demo' && isFixtureOwner(request) &&
     request.signals?.source === 'judge_fixture';
   if (!id) return false;
@@ -68,7 +68,10 @@ function knownNotesRoute(request) {
   if (method === 'GET') {
     return fixtureDemo && route === 'GET /notes/:id';
   }
-  return uuid.test(id) && ['PUT', 'DELETE'].includes(method) &&
+  // ID 형식이 맞아도 해당 자료의 소유권을 보장하지 않습니다.
+  // 엔진 v1에는 ownerId가 없으므로 확인된 연습용 주체/기기/자원에 대해서만 허용합니다.
+  // 실제 UUID의 최종 소유권 검사는 서버 API의 owner_id 조건에서 수행됩니다.
+  return fixtureDemo && ['PUT', 'DELETE'].includes(method) &&
     route === `${method} /notes/:id`;
 }
 
