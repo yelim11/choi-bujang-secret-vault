@@ -77,7 +77,7 @@ export async function runAttackChecks(config) {
   const csp = Boolean(rootResponse.headers.get('content-security-policy'));
   const rootProtected = rootResponse.ok && (nosniff || csp);
 
-  return [
+  const results = [
     {
       attackId: 'anonymous_note_list_denied',
       expected: '무로그인 목록 GET은 JSON 오류와 함께 401 또는 403',
@@ -107,4 +107,51 @@ export async function runAttackChecks(config) {
         : `첫 화면 보안 헤더 확인 실패 (HTTP ${rootResponse.status})`,
     },
   ];
+  if (config.step === 8) {
+    const routes = manifest?.allowedRoutes;
+    const hasZone = (service, method, pathPattern, zone) =>
+      Array.isArray(routes) && routes.some(entry => entry?.service === service
+        && entry.method === method && entry.pathPattern === pathPattern
+        && entry.zone === zone);
+    const zonesCorrect = hasZone('notes', 'GET', '/api/notes/:id', 'my-notes')
+      && hasZone('notices', 'GET', '/api/notices', 'class-notices')
+      && hasZone('notices', 'PUT', '/api/notices/:id', 'instructor-materials');
+    const [noticesList, noticesWrite] = await Promise.all([
+      fetch(new URL('/api/notices', app), {
+        redirect: 'error', signal: AbortSignal.timeout(10000),
+        headers: { Accept: 'application/json' },
+      }),
+      fetch(new URL('/api/notices/' + testId, app), {
+        method: 'PUT', redirect: 'error', signal: AbortSignal.timeout(10000),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'fixture', body: 'fixture', role: 'instructor' }),
+      }),
+    ]);
+    const noticesReadDenied = await deniedJson(noticesList);
+    const noticesWriteDenied = await deniedJson(noticesWrite);
+    results.push(
+      {
+        attackId: 'deployed_resource_zones_verified',
+        expected: '실제 배포 구역에 notes 자기 메모와 notices 강사 공지 읽기·쓰기 구역이 분리됨',
+        observed: zonesCorrect
+          ? '실제 /aleph.json에서 메모/공지/강사 구역을 분리해서 확인함'
+          : '배포 구역 정의 검증 실패',
+      },
+      {
+        attackId: 'anonymous_notices_denied',
+        expected: '무로그인 강사 공지 목록 조회 거부',
+        observed: noticesReadDenied
+          ? `무로그인 /api/notices HTTP ${noticesList.status} 거부 확인`
+          : `무로그인 공지 조회 거부 검증 실패 (HTTP ${noticesList.status})`,
+      },
+      {
+        attackId: 'forged_notice_role_denied_anonymously',
+        expected: '비인증 수정 요청의 role=instructor 위조에도 공지 수정 거부',
+        observed: noticesWriteDenied
+          ? `비인증 role 위조 공지 수정 HTTP ${noticesWrite.status} 거부 확인`
+          : `비인증 공지 수정 거부 검증 실패 (HTTP ${noticesWrite.status})`,
+      },
+    );
+  }
+  return results;
 }
