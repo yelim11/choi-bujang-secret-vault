@@ -16,11 +16,20 @@ const INSTRUCTOR = Object.freeze({
 
 // 제공된 fixture 전용 가상 접근 권한. 실제 Supabase 소유권 매핑이 아닙니다.
 // 방법/정확한 경로/주체/기기까지 일치해야 하며 임의 UUID는 절대 허용하지 않습니다.
+// 가상 소유권 시험: 요청자가 보내는 주인 정보가 아니라 독립 등록된 가상 자료 기록입니다.
+// 이 기록은 실제 학생의 DB 소유권 증거가 아니며 source=judge_fixture 외에는 사용하지 않습니다.
+const VIRTUAL_NOTE_ROWS = Object.freeze([
+  Object.freeze({ path: '/notes/demo', owner: LEARNER }),
+  Object.freeze({
+    path: '/notes/demo-b',
+    owner: Object.freeze({
+      classId: 'class_fixture', projectId: 'project_fixture',
+      subjectId: 'learner_b_fixture', deviceId: 'bbbbbbbbbbbbbbbb',
+    }),
+  }),
+]);
+
 const FIXTURE_GRANTS = Object.freeze([
-  ...['GET', 'PUT', 'DELETE'].map(method => Object.freeze({
-    ...LEARNER, service: 'notes', method, path: '/notes/demo',
-    route: method + ' /notes/:id',
-  })),
   Object.freeze({
     ...LEARNER, service: 'notes', method: 'GET',
     path: '/api/my/notes', route: 'GET /api/my/notes',
@@ -38,12 +47,30 @@ const FIXTURE_GRANTS = Object.freeze([
   }),
 ]);
 
+function virtualOwnerMatches(row, request) {
+  return row !== undefined && request.service === 'notes'
+    && ['GET', 'PUT', 'DELETE'].includes(request.method)
+    && request.route === request.method + ' /notes/:id'
+    && ['classId', 'projectId', 'subjectId', 'deviceId'].every(
+      key => row.owner[key] === request[key]);
+}
+
 function validFixtureGrant(request) {
-  return request?.signals?.source === 'judge_fixture'
-    && request.queryLength === 0 && request.querySha256 === EMPTY_SHA256
-    && FIXTURE_GRANTS.some(grant =>
-      ['classId', 'projectId', 'subjectId', 'deviceId', 'service',
-        'method', 'path', 'route'].every(key => grant[key] === request[key]));
+  if (request?.signals?.source !== 'judge_fixture'
+      || request.queryLength !== 0 || request.querySha256 !== EMPTY_SHA256
+      || !Number.isInteger(request.policyRevision) || request.policyRevision < 1) {
+    return false;
+  }
+
+  // 단건 메모는 허용 경로 존재만으로 통과시키지 않습니다.
+  // 별도 가상 자료 등록부에서 현재 요청자의 소유권을 대조한 경우에만 허용합니다.
+  if (request.service === 'notes' && request.route?.endsWith('/notes/:id')) {
+    const row = VIRTUAL_NOTE_ROWS.find(record => record.path === request.path);
+    return virtualOwnerMatches(row, request);
+  }
+  return FIXTURE_GRANTS.some(grant =>
+    ['classId', 'projectId', 'subjectId', 'deviceId', 'service',
+      'method', 'path', 'route'].every(key => grant[key] === request[key]));
 }
 
 function isCompositeRisk(request) {
