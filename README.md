@@ -1,6 +1,6 @@
-# BYTE BACK 방어전 · 6단계 저장점
+# BYTE BACK 방어전 · 7단계 저장점
 
-현재 단계는 **6단계 「등록한 기기만 자료실에 들어옵니다」**입니다. 1~5단계 배포 앱의 기능과 경로는 보존합니다.
+현재 단계는 **7단계 「평소와 다른 접속은 다시 확인합니다」**입니다. 1~5단계 배포 앱의 기능과 경로는 보존합니다.
 
 브라우저의 메모 CRUD는 모두 Vercel 서버 함수만 호출합니다. 로그인 요청도 `/api/auth` 서버 함수로 보내므로 현재 브라우저 정적 코드에는 Supabase publishable/anon 키를 넣지 않습니다. 4단계의 로그인 토큰 검증과 owner 검사는 그대로 유지합니다.
 
@@ -99,6 +99,26 @@ npm run decider:test
 ```
 
 두 번째 항목은 `deny`와 `device_not_registered`를 확인하는 테스트입니다. 위 내용은 저장소의 판정기·시험 스크립트를 별도 Node.js 폴더에 재현하여 확인한 출력입니다. 저장소 전체에서 `npm run decider:test`를 실행하거나 운영 심판 판정을 받은 것은 아닙니다. 최종 심판 판정은 제출 후 별도로 확인해야 합니다.
+
+## 7단계 복합 접속 이상과 추가 본인 확인
+
+- 계약: `docs/DECIDER_REQUEST.md`의 `aleph.decision.v1`. 6단계 `device_registered`를 유지하며, `step_up_required` 규칙을 추가했습니다.
+- 운영 엔진이 신원·기기·경로를 검증한 요청만 판정합니다. `request.signals.source === 'judge_fixture'`인 가상 사건에서만 이상 신호를 결합합니다.
+- `signals.hour`가 0~5시 또는 23시이고 `signals.network === 'unusual'`이며, `recentEvents`의 최근 300초 내 `risk_signal` 횟수가 10 이상인 경우를 복합 이상 접속으로 분류합니다. `region`만 바뀐 경우에는 차단하지 않습니다.
+- 기기가 미등록이면 기존처럼 `deny / device_not_registered`로 거부합니다. 등록된 기기의 복합 이상 접속은 `step_up / step_up_required`로 재확인을 요청하고, 해당 요청에 엔진이 검증해 제공한 `stepUp.verified === true`와 계약상 유효한 인증 나이(0~900초)가 있으면 `allow / approved`합니다.
+- 운영 접속의 `signals.source: 'none'`, 누락되거나 출처가 불명확한 신호는 임의로 정상 지역·시각·네트워크 정보로 보정하지 않습니다. 가상 사건 신호를 실제 위치 증거로 취급하지 않습니다.
+- 제공된 계약에서 `stepUp` 필드가 확인되지만, 이 코드의 로컬 시험만으로 실제 로그인 재요청 UI 또는 실제 자료 차단을 확인할 수는 없습니다. 운영 연결 실측은 **미실행**입니다. 토큰 원문은 로그·저장소에 기록하지 않습니다.
+
+### 재실행 및 자체 검증
+
+```bash
+npm run decider:test
+npm run fixture:7
+```
+
+`decider:test`는 등록 기기 허용, 미등록 기기 거부, 복합 이상 접속 `step_up`, 재확인 후 `allow`를 점검합니다. `fixture:7`는 정상 사건 `allow`와 복합 이상 사건 `step_up`을 비교합니다. 모두 가상 요청 연습으로 운영 심판 통과 증거가 아닙니다.
+
+실제 운영 로그인 확인 전 자료가 보이지 않는지, 새 로그인 후 열리는지는 심판 또는 엔진이 연결된 환경에서 별도 시험해야 합니다.
 
 ## 제출
 
