@@ -1,3 +1,4 @@
+// S08 final checkpoint: Vercel must preserve the item UUID before api/notes.js handles the request.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
