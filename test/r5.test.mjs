@@ -108,3 +108,11 @@ test('bundle explanation remains exactly three non-empty lines', () => {
     /정확히 세 줄/u,
   );
 });
+
+test('S08 note lookup requires both id and verified owner in database query', async () => {
+  const source = await readFile(new URL('../api/notes.js', import.meta.url), 'utf8');
+  const ownedNote = source.match(/async function ownedNote\([\s\S]*?\n}\n/u)?.[0];
+  assert.ok(ownedNote, 'ownedNote function must exist');
+  assert.match(ownedNote, /\.eq\('id', id\)[\s\S]*?\.eq\('owner_id', userId\)/u);
+  assert.match(source, /\.eq\('owner_id', identity\.userId\)/u);
+});
