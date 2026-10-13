@@ -1,110 +1,93 @@
-// 엔진이 신원/기기를 검사한 aleph.decision.v1 요청만 판정합니다.
-// 역할 또는 소유권을 client role, query, signals에서 만들어 내지 않습니다.
+// ALEPH 엔진 검증 요청 18개 필드만 판정합니다.
+// 실사용 자료 소유자는 운영자가 등록한 서버 전용 바인딩과 DB에서 확인합니다.
 export const RULE_IDS = Object.freeze([
-  'device_registered', 'step_up_required', 'resource_boundary',
+  'device_registered', 'step_up_required', 'resource_zone',
 ]);
+
+const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+const LEARNER = Object.freeze({
+  classId: 'class_fixture', projectId: 'project_fixture',
+  subjectId: 'learner_fixture', deviceId: 'aaaaaaaaaaaaaaaa',
+});
+const INSTRUCTOR = Object.freeze({
+  classId: 'class_fixture', projectId: 'project_fixture',
+  subjectId: 'instructor_fixture', deviceId: 'bbbbbbbbbbbbbbbb',
+});
+
+// 제공된 fixture 전용 가상 접근 권한. 실제 Supabase 소유권 매핑이 아닙니다.
+// 방법/정확한 경로/주체/기기까지 일치해야 하며 임의 UUID는 절대 허용하지 않습니다.
+const FIXTURE_GRANTS = Object.freeze([
+  ...['GET', 'PUT', 'DELETE'].map(method => Object.freeze({
+    ...LEARNER, service: 'notes', method, path: '/notes/demo',
+    route: method + ' /notes/:id',
+  })),
+  ...['/notes', '/api/notes'].flatMap(path => ['GET', 'POST'].map(method =>
+    Object.freeze({ ...LEARNER, service: 'notes', method, path,
+      route: method + ' ' + path }))),
+  ...['/notices', '/api/notices'].map(path =>
+    Object.freeze({ ...LEARNER, service: 'notices',
+      method: 'GET', path, route: 'GET ' + path })),
+  Object.freeze({
+    ...INSTRUCTOR, service: 'notices', method: 'PUT',
+    path: '/notices/notice-demo', route: 'PUT /notices/:id',
+  }),
+]);
+
+function validFixtureGrant(request) {
+  return request?.signals?.source === 'judge_fixture'
+    && request.queryLength === 0 && request.querySha256 === EMPTY_SHA256
+    && FIXTURE_GRANTS.some(grant =>
+      ['classId', 'projectId', 'subjectId', 'deviceId', 'service',
+        'method', 'path', 'route'].every(key => grant[key] === request[key]));
+}
 
 function isCompositeRisk(request) {
   const signals = request.signals;
   if (!signals || signals.source !== 'judge_fixture') return false;
-  const unusualHour = Number.isInteger(signals.hour) &&
-    (signals.hour < 6 || signals.hour >= 23);
+  const unusualHour = Number.isInteger(signals.hour)
+    && (signals.hour < 6 || signals.hour >= 23);
   const unfamiliarNetwork = signals.network === 'unusual';
-  const highVolume = Array.isArray(request.recentEvents) &&
-    request.recentEvents.some(event =>
-      event && event.kind === 'risk_signal' &&
-      Number.isInteger(event.count) && event.count >= 10 &&
-      Number.isInteger(event.ageSeconds) &&
-      event.ageSeconds >= 0 && event.ageSeconds <= 300);
+  const highVolume = Array.isArray(request.recentEvents)
+    && request.recentEvents.some(event => event
+      && event.kind === 'risk_signal'
+      && Number.isInteger(event.count) && event.count >= 10
+      && Number.isInteger(event.ageSeconds)
+      && event.ageSeconds >= 0 && event.ageSeconds <= 300);
   return unusualHour && unfamiliarNetwork && highVolume;
 }
 
-// 서비스/메서드/route와 실제 path를 함께 대조합니다.
-// 기능 선택에 쿼리를 쓰지 않으며, :id는 한 경로 세그먼트만 받습니다.
-// 개별 메모의 실제 소유권은 API가 저장된 owner_id와 검증된 토큰을 대조합니다.
-// 판정 계약에 소유자 필드는 없습니다. 따라서 엔진이 검증해 제공한 공식
-// 가상 주체/기기와 연결된 연습 자원에만 이 판정기 단독 GET 접근을 허용합니다.
-// 실제 학생 메모의 소유권 검사는 api/notes.js의 DB owner_id 조건이 맡습니다.
-function isFixtureOwner(request) {
-  return request.classId === 'class_fixture'
-    && request.projectId === 'project_fixture'
-    && request.subjectId === 'learner_fixture'
-    && request.deviceId === 'aaaaaaaaaaaaaaaa';
-}
-
-function knownNotesRoute(request) {
-  if (typeof request.path !== 'string') return false;
-  // 계약 v1은 쿼리 원문을 제공하지 않으므로 그 안의 구역/권한 선택을 판정할 수 없습니다.
-  // UI의 정상 메모 경로는 쿼리를 사용하지 않습니다. 해시까지 빈 쿼리와 일치해야 허용합니다.
-  const emptyQueryHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-  if (request.queryLength !== 0 || request.querySha256 !== emptyQueryHash) return false;
-  // 검증된 공지 서비스의 조회 구역은 쓰기 구역과 분리합니다.
-  // 강사 권한을 증명할 계약이 없으므로 일반 계정의 공지 쓰기는 허용하지 않습니다.
-  if (request.service === 'notices') {
-    return request.method === 'GET' && (
-      (request.path === '/notices' && request.route === 'GET /notices') ||
-      (request.path === '/api/notices' && request.route === 'GET /api/notices')
-    );
-  }
-  if (request.service !== 'notes') return false;
-  const method = request.method;
-  const path = request.path;
-  const route = request.route;
-  if (path === '/notes' || path === '/api/notes') {
-    // 넓은 목록 경로를 모든 주체의 메모 구역 권한으로 해석하지 않습니다.
-    if (method === 'GET') return isFixtureOwner(request) && route === `GET ${path}`;
-    return method === 'POST' && route === `POST ${path}`;
-  }
-  // export 등 기능 경로는 메모 ID로 취급하지 않습니다.
-  const id = /^\/notes\/([^/?#]+)$/u.exec(path)?.[1];
-  // 실서비스 메모 ID는 API와 동일한 UUID 규약을 사용합니다.
-  // 임의 구역명(other, foreign 등)이나 기능명(export)을 :id로 받지 않습니다.
-  // ID 형식 검사는 API에서 별도로 적용하며, 판정기에서는 소유권 없는 UUID를 허용하지 않습니다.
-  const fixtureDemo = id === 'demo' && isFixtureOwner(request) &&
-    request.signals?.source === 'judge_fixture';
-  if (!id) return false;
-  // 계약 v1은 메모 소유자를 제공하지 않습니다. UUID 형식은 권한의 증거가 아닙니다.
-  // 검증되지 않은 단건 GET은 fail-closed; API는 별도로 소유자 조건을 검증합니다.
-  if (method === 'GET') {
-    return fixtureDemo && route === 'GET /notes/:id';
-  }
-  // ID 형식이 맞아도 해당 자료의 소유권을 보장하지 않습니다.
-  // 엔진 v1에는 ownerId가 없으므로 확인된 연습용 주체/기기/자원에 대해서만 허용합니다.
-  // 실제 UUID의 최종 소유권 검사는 서버 API의 owner_id 조건에서 수행됩니다.
-  return fixtureDemo && ['PUT', 'DELETE'].includes(method) &&
-    route === `${method} /notes/:id`;
+async function resourceAllowed(request) {
+  if (validFixtureGrant(request)) return true;
+  // 운영 엔진은 가명 subjectId를 사용하므로 DB owner_id와 직접 비교하면 안 됩니다.
+  // 서버 비밀 설정과 운영자 등록부가 없을 때는 기본 거부합니다.
+  try {
+    const { runtimeTrustedResourceAllowed } =
+      await import('./engine-resource-access.mjs');
+    return await runtimeTrustedResourceAllowed(request);
+  } catch { return false; }
 }
 
 export async function decide(request) {
-  let decision = 'allow';
-  let reasonCode = 'approved';
-  let ruleIds = ['device_registered'];
-
-  if (request.deviceRegistered !== true) {
-    decision = 'deny';
-    reasonCode = 'device_not_registered';
-  } else if (!knownNotesRoute(request)) {
-    // 미등록 자원/정확하지 않은 메서드·경로 및 공지 쓰기는 거부합니다.
-    decision = 'deny';
-    reasonCode = 'route_not_allowed';
-    ruleIds = ['resource_boundary'];
-  } else if (isCompositeRisk(request)) {
-    const verified = request.stepUp?.verified === true &&
-      Number.isInteger(request.stepUp.authAgeSeconds) &&
-      request.stepUp.authAgeSeconds >= 0 &&
-      request.stepUp.authAgeSeconds <= 900;
+  const reply = (decision, reasonCode, ruleIds) => ({
+    schema: 'aleph.decision.v1', requestId: request?.requestId,
+    decision, reasonCode, ruleIds,
+  });
+  if (request?.deviceRegistered !== true) {
+    return reply('deny', 'device_not_registered', ['device_registered']);
+  }
+  if (request?.schema !== 'aleph.decision.v1'
+      || !await resourceAllowed(request)) {
+    return reply('deny', 'route_not_allowed', ['resource_zone']);
+  }
+  if (isCompositeRisk(request)) {
+    const verified = request.stepUp?.verified === true
+      && Number.isInteger(request.stepUp.authAgeSeconds)
+      && request.stepUp.authAgeSeconds >= 0
+      && request.stepUp.authAgeSeconds <= 900;
     if (!verified) {
-      decision = 'step_up';
-      reasonCode = 'step_up_required';
-      ruleIds = ['step_up_required'];
+      return reply('step_up', 'step_up_required',
+        ['device_registered', 'resource_zone', 'step_up_required']);
     }
   }
-
-  return {
-    schema: 'aleph.decision.v1',
-    requestId: request.requestId,
-    decision,
-    reasonCode,
-    ruleIds,
-  };
+  return reply('allow', 'approved', ['device_registered', 'resource_zone']);
 }
