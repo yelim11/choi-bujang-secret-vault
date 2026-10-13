@@ -196,8 +196,16 @@ test('S08 deployed route manifest specifies distinct verified resource zones', a
     assert.equal(live.allowedRoutes.filter(r => r.service === service
       && r.method === method && r.pathPattern === pathPattern && r.zone === zone).length, 1);
   }
-  assert.equal(live.allowedRoutes.some(r => r.service === 'notices'
-    && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(r.method)), false);
+  for (const [method, pathPattern] of [
+    ['GET', '/api/notices/:id'],
+    ['POST', '/api/notices'],
+    ['PUT', '/api/notices/:id'],
+    ['DELETE', '/api/notices/:id'],
+  ]) {
+    assert.equal(live.allowedRoutes.filter(r => r.service === 'notices'
+      && r.method === method && r.pathPattern === pathPattern
+      && r.zone === (method === 'GET' ? 'class-notices' : 'instructor-materials')).length, 1);
+  }
   assert.equal(new Set(live.allowedRoutes.map(r => r.method + ' ' + r.pathPattern)).size,
     live.allowedRoutes.length);
 });
