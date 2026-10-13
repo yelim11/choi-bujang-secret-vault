@@ -6,6 +6,7 @@ import {
   parseResourceTarget, routeAllowed, belongsToVerifiedOwner, hasVerifiedInstructorRole,
 } from '../src/resource-policy.mjs';
 import { createTrustedEngineResourceCheck } from '../src/engine-resource-access.mjs';
+import { resourceAllowed } from '../src/decider.mjs';
 import { handleNoticesRequest } from '../api/notices.js';
 import { handleNotesRequest } from '../api/notes.js';
 
@@ -265,4 +266,55 @@ test('8단계 API: 관리자 인증 강사만 자기 공지 수정, 타인 공�
   assert.equal(foreign.statusCode, 404);
   assert.equal((await handleNoticesRequest({ ...base, method: 'GET',
     headers: {} }, response(), current)).statusCode, 401);
+});
+
+
+test('8단계 judge fixture의 타인 단건 GET은 runtime DB 허용으로 우회하지 않음', async () => {
+  const base = {
+    schema: 'aleph.decision.v1',
+    requestId: randomUUID(),
+    classId: 'class_fixture',
+    projectId: 'project_fixture',
+    subjectId: 'learner_fixture',
+    deviceId: 'aaaaaaaaaaaaaaaa',
+    service: 'notes',
+    method: 'GET',
+    path: '/api/notes/demo-b',
+    route: 'GET /api/notes/:id',
+    queryLength: 0,
+    querySha256: EMPTY_SHA,
+    at: new Date().toISOString(),
+    policyRevision: 1,
+    deviceRegistered: true,
+    stepUp: { verified: false, authAgeSeconds: null },
+    signals: { source: 'judge_fixture', region: 'local', network: 'usual', hour: 14 },
+    recentEvents: [],
+  };
+
+  let runtimeCalled = false;
+  const foreign = await resourceAllowed(base, async () => {
+    runtimeCalled = true;
+    return true;
+  });
+  assert.equal(foreign, false);
+  assert.equal(runtimeCalled, false);
+
+  const own = await resourceAllowed({
+    ...base,
+    requestId: randomUUID(),
+    path: '/api/notes/demo',
+  }, async () => {
+    runtimeCalled = true;
+    return false;
+  });
+  assert.equal(own, true);
+  assert.equal(runtimeCalled, false);
+
+  const mixedRoute = await resourceAllowed({
+    ...base,
+    requestId: randomUUID(),
+    path: '/api/notes/demo',
+    route: 'GET /notes/:id',
+  }, async () => true);
+  assert.equal(mixedRoute, false);
 });
