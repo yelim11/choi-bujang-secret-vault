@@ -156,7 +156,7 @@ npm run fixture:7
 3. 강사 공지 쓰기는 추가로 `auth.admin.getUserById`가 반환한 서버 관리 `app_metadata.role/roles`을 확인합니다. 공지 수정·삭제 시 저장된 `owner_id`를 다시 검사합니다.
 4. 이 연결이 없거나 만료되었거나 DB 연결이 실패하면 **기본 거부**합니다. 브라우저에서 가명-실사용자 연결을 등록하는 API는 만들지 않았습니다.
 
-`supabase/step8_resource_authorization.sql`에 새 `notices` 및 `sdp_principal_bindings` 테이블과 RLS/서비스 역할 전용 접근을 준비했습니다. **2026-10-13 점검 시 Supabase 관리 SQL 연결이 시간 초과되어 실제 DB에 적용하지 못했습니다.** 기존 notes 데이터는 수정하지 않았습니다. 따라서 새로운 공지 CRUD 및 실사용 SDP 바인딩은 SQL 적용과 운영자의 실제 등록 전에는 **미실행**이며, 배포된 서버는 해당 기능을 실패 시 거부합니다.
+`supabase/step8_resource_authorization.sql`에 새 `notices` 및 `sdp_principal_bindings` 테이블과 RLS/서비스 역할 전용 접근을 준비했습니다. **2026-10-13 점검 시 Supabase 관리 SQL 연결이 반복해서 시간 초과되어 실제 DB에 적용하지 못했습니다.** 기존 notes 데이터는 수정하지 않았습니다. 따라서 새로운 공지 CRUD 및 실사용 SDP 바인딩은 SQL 적용과 운영자의 실제 등록 전에는 **미실행**이며, 배포된 서버는 해당 기능을 실패 시 거부합니다.
 
 ### 자동 검증
 
