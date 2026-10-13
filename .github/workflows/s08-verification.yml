@@ -1,0 +1,30 @@
+name: S08 ownership and defense regression
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Stage 6 to 8 decider checks
+        run: npm run decider:test
+      - name: Stage 7 step-up fixture
+        run: npm run fixture:7
+      - name: Stage 5 and 8 API ownership regression
+        run: npm run test:r5
+      - name: Local static build
+        run: node scripts/build-public.mjs --local
