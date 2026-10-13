@@ -1,6 +1,6 @@
-# BYTE BACK 방어전 · 5단계 저장점
+# BYTE BACK 방어전 · 6단계 저장점
 
-현재 단계는 **5단계 「자료 요청을 서버 한곳으로 모읍니다」**입니다.
+현재 단계는 **6단계 「등록한 기기만 자료실에 들어옵니다」**입니다. 1~5단계 배포 앱의 기능과 경로는 보존합니다.
 
 브라우저의 메모 CRUD는 모두 Vercel 서버 함수만 호출합니다. 로그인 요청도 `/api/auth` 서버 함수로 보내므로 현재 브라우저 정적 코드에는 Supabase publishable/anon 키를 넣지 않습니다. 4단계의 로그인 토큰 검증과 owner 검사는 그대로 유지합니다.
 
@@ -73,6 +73,32 @@ npm run xdr:run -- brute-force
 - 무로그인 요청이 거부되는지 확인
 - 원본 Supabase Data API 직접 접근이 거부되는지 확인
 - 현재 배포 정적 코드에 Supabase 공개 키가 없는지 확인
+
+
+## 6단계 기기 등록 판정기
+
+- 요청 계약: `docs/DECIDER_REQUEST.md` (`aleph.decision.v1`).
+- 운영 엔진이 검증해 전달한 `request.subjectId`는 가명 사용자 주체이며 `request.deviceId`는 확인된 기기 ID입니다.
+- `request.deviceRegistered === true`이면 `allow / approved`, 그 외(`false` 또는 누락)는 `deny / device_not_registered`입니다.
+- 구현 규칙 ID: `device_registered`. 판정기 응답은 계약의 다섯 항목만 반환합니다.
+- 인증서 검증, mTLS 통로 접근, 사용자 토큰과 등록 기기 바인딩은 운영 엔진의 사전 검증 책임이며, 이 로컬 규칙만으로 해당 공격을 실증했다고 해석하지 않습니다.
+- 신규 인증서, CA, 개인키, 접속 프로그램은 설치하거나 저장하지 않았습니다.
+
+### 로컬 확인 순서
+
+```bash
+npm run decider:test
+```
+
+예상 결과:
+
+```text
+통과 · 등록 기기의 정상 요청
+통과 · 미등록 기기의 가상 요청
+이 명령은 가상 요청으로 연습하며 심판 통과 증거가 아닙니다.
+```
+
+두 번째 항목은 `deny`와 `device_not_registered`를 확인하는 테스트입니다. 위 내용은 **예상 출력**이며 이 README 작성 시 연결 환경에서 npm 명령을 실제 실행하지 못했습니다. 최종 심판 판정은 제출 후 별도로 확인해야 합니다.
 
 ## 제출
 
