@@ -7,6 +7,7 @@ import {
 } from '../src/resource-policy.mjs';
 import { createTrustedEngineResourceCheck } from '../src/engine-resource-access.mjs';
 import { handleNoticesRequest } from '../api/notices.js';
+import { handleNotesRequest } from '../api/notes.js';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -47,6 +48,14 @@ function mockDb({ instructor = false, expired = false } = {}) {
         select() { return builder; },
         eq(column, value) { filters.push([column, value]); return builder; },
         order() { return builder; },
+        // Supabase의 목록 select 체인을 가상 자료 행으로 반환합니다.
+        then(onFulfilled, onRejected) {
+          events.push([table, ...filters]);
+          return Promise.resolve({
+            data: rows[table].filter(row => filters.every(([key, value]) => row[key] === value)),
+            error: null,
+          }).then(onFulfilled, onRejected);
+        },
         async maybeSingle() {
           events.push([table, ...filters]);
           return { data: rows[table].find(row =>
@@ -186,6 +195,47 @@ test('8단계 강사 권한은 서버 admin app_metadata로만 판단', async ()
     service: 'notices' })), true);
   assert.equal(await check(engineReq({ method: 'PUT', path: '/notices/' + NOTICE_A,
     service: 'notices', subjectId: 'subject_b', deviceId: 'b'.repeat(16) })), false);
+});
+
+test('8단계 실제 메모 API: A/B 양방향 소유권 및 본인 전용 목록', async () => {
+  const db = mockDb();
+  const current = { supabase: db, verifyLogin: async token =>
+    token === 'mock-A' ? { kind: 'student', userId: A }
+      : token === 'mock-B' ? { kind: 'student', userId: B } : null };
+
+  const call = (user, method, url, body) => handleNotesRequest({
+    url, method, headers: { authorization: user }, ...(body ? { body } : {}),
+  }, response(), current);
+
+  const aOwn = await call('mock-A', 'GET', '/api/notes/' + MEMO_A);
+  assert.equal(aOwn.statusCode, 200);
+  assert.equal(aOwn.body.id, MEMO_A);
+  const bOwn = await call('mock-B', 'GET', '/api/notes/' + MEMO_B);
+  assert.equal(bOwn.statusCode, 200);
+  assert.equal(bOwn.body.id, MEMO_B);
+
+  const aTriesB = await call('mock-A', 'GET', '/api/notes/' + MEMO_B);
+  assert.equal(aTriesB.statusCode, 404);
+  assert.equal(aTriesB.body.error, 'NOTE_NOT_FOUND');
+  const bTriesA = await call('mock-B', 'GET', '/api/notes/' + MEMO_A);
+  assert.equal(bTriesA.statusCode, 404);
+  assert.equal(bTriesA.body.error, 'NOTE_NOT_FOUND');
+
+  const aList = await call('mock-A', 'GET', '/api/my/notes');
+  assert.equal(aList.statusCode, 200);
+  assert.deepEqual(aList.body.map(row => row.id), [MEMO_A]);
+  const bList = await call('mock-B', 'GET', '/api/my/notes');
+  assert.equal(bList.statusCode, 200);
+  assert.deepEqual(bList.body.map(row => row.id), [MEMO_B]);
+
+  // 호환 주소를 제거하지 않고, 똑같이 DB에서 소유자를 검증합니다.
+  const legacyList = await call('mock-A', 'GET', '/api/notes');
+  assert.equal(legacyList.statusCode, 200);
+  assert.deepEqual(legacyList.body.map(row => row.id), [MEMO_A]);
+
+  assert.equal((await call('missing', 'GET', '/api/my/notes')).statusCode, 401);
+  assert.equal((await call('mock-A', 'GET', '/api/my/notes?role=instructor')).statusCode, 400);
+  assert.equal((await call('mock-A', 'GET', '/api/my/notes/export')).statusCode, 400);
 });
 
 test('8단계 API: 학생 role 위조로 강사 공지 수정 불가', async () => {
