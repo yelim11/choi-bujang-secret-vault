@@ -2,7 +2,7 @@ name: S08 ownership and defense regression
 
 on:
   push:
-    branches: [main, s08-trusted-zone-bridge]
+    branches: [main, s08-trusted-zone-bridge, s08-own-list-boundary]
   workflow_dispatch:
 
 permissions:
