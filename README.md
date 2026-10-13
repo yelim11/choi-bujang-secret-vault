@@ -195,3 +195,18 @@ npm run bundle
 
 `npm run bundle`은 학생 자기점검이며 실제 심판 판정 자체는 아닙니다. `bundle-notes.json`과 `artifacts/submission.json`은 Git에 커밋하지 않습니다.
 
+
+
+### 8단계 재제출 보완 · S08_OTHER_ZONE_ALLOWED
+
+심판은 커밋 `46de26b63c93`에서 48/100점, 조건 「구역 규칙」 실패와 `S08_OTHER_ZONE_ALLOWED`를 기록했습니다. 다른 구역 메모 수정, 다른 구역 목록 조회, 학생 계정의 강사 공지 수정은 이미 격파되었고 **다른 구역 메모 단건 GET만 실패**했습니다.
+
+이번 저장점은 GET 판정 경로만 최소 보완했습니다.
+
+- `judge_fixture` 요청은 명시적 fixture 소유권 등록표에서 사용자·기기·반·프로젝트·메서드·정확한 경로가 모두 맞을 때만 허용합니다.
+- fixture 소유권이 맞지 않으면 실제 runtime DB 바인딩 검사로 넘어가지 않고 즉시 기본 거부합니다.
+- `/notes/:id`와 `/api/notes/:id`를 둘 다 지원하되 path와 route 형식을 섞으면 거부합니다.
+- 기존 실제 API의 `id + owner_id` DB 필터와 반환 행의 owner 재확인은 그대로 유지합니다.
+- 이미 통과한 PUT, 본인 전용 목록, 학생 공지 수정 거부 규칙은 변경하지 않았습니다.
+
+로컬 확인 결과: `npm run decider:test` 통과, `npm run test:zone` 10/10 통과, `npm run test:r5` 7/7 통과. 이 결과는 자기점검이며 공식 심판 재판정은 재제출 후 확인해야 합니다.

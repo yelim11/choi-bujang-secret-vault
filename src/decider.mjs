@@ -1,3 +1,4 @@
+// S08 checkpoint: judge_fixture 자원은 명시적 fixture 소유권이 맞을 때만 허용합니다.
 // ALEPH 엔진 검증 요청 18개 필드만 판정합니다.
 // 실사용 자료 소유자는 운영자가 등록한 서버 전용 바인딩과 DB에서 확인합니다.
 export const RULE_IDS = Object.freeze([

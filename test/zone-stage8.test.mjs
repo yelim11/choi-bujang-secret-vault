@@ -1,3 +1,4 @@
+// S08 checkpoint: judge fixture가 runtime DB 허용으로 우회하지 않는지 검증합니다.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';

@@ -1,3 +1,4 @@
+// S08 checkpoint: API 단건 GET의 A/B 교차 조회 회귀를 포함합니다.
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
