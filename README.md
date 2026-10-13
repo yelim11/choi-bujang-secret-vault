@@ -151,6 +151,12 @@ npm run bundle
 - `/notes/other`, `/notes/other-user-note`, `/notes/export`는 `deny / resource_not_allowed`를 기대하도록 회귀 시험을 추가했습니다.
 - **남은 한계:** UUID의 실제 소유자는 판정 요청 계약에 제공되지 않습니다. API의 DB `owner_id` 확인이 최종 권한 경계이며, 이번 변경만으로 심판 재통과를 주장하지 않습니다.
 
+### S08 2차 실패 후 DB 소유권 조건 강화
+
+- 커밋 `76939c4f3b1b` 심판 재판정에서도 `S08_OTHER_ZONE_ALLOWED`가 반복되어 **UUID 형식 검사만으로 해결되지 않았음**을 확인했습니다.
+- `api/notes.js`의 `ownedNote` 단건 조회에 `.eq('owner_id', userId)`를 추가해, 서버에서 검증된 사용자와 DB 소유자가 다른 행은 조회 단계에서 제외합니다. 기존 조회 결과 검사·PUT/DELETE 소유권 조건·목록 소유자 필터는 유지합니다.
+- 이는 실제 API의 소유권 검증을 강화하는 최소 변경이며, 판정기에 소유자 정보가 전달되지 않는 `aleph.decision.v1` 계약의 한계는 그대로입니다. 심판 재통과와 본인/타인 계정 실측은 **미확인**입니다.
+
 ## 제출
 
 로컬에 Git에 올리지 않는 `bundle-notes.json`을 준비한 뒤 `npm run bundle`을 실행해야 합니다. 제출 묶음은 실제 명령이 성공한 경우에만 생성 완료로 기록합니다.
