@@ -62,10 +62,11 @@ export async function ownedNote(supabase, id, userId) {
   return { data };
 }
 
-export default async function handler(request, response) {
+// 검증된 로그인/DB 런타임을 주입하는 내부 핸들러. 권한 검사와 응답은 실사용 경로와 동일합니다.
+// 테스트에서는 토큰 원문이나 운영 DB에 접근하지 않고 가상 A/B 주체를 전달합니다.
+export async function handleNotesRequest(request, response, current) {
   noStore(response);
 
-  const current = getRuntime();
   if (!current) return response.status(503).json({ error: 'NOTES_BACKEND_NOT_CONFIGURED' });
 
   const identity = await current.verifyLogin(request.headers?.authorization);
@@ -189,4 +190,8 @@ export default async function handler(request, response) {
 
   response.setHeader('Allow', 'GET, PUT, DELETE');
   return response.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
+}
+
+export default async function handler(request, response) {
+  return handleNotesRequest(request, response, getRuntime());
 }
