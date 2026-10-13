@@ -46,5 +46,34 @@ jobs:
           name: aleph-stage8-submission
           path: artifacts/submission.json
           if-no-files-found: error
+      - name: Verify deployed 8th-stage zones and notices gate
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const app = 'https://choi-bujang-secret-vault-tkzf.vercel.app';
+          let manifest;
+          for (let attempt = 0; attempt < 20; attempt++) {
+            const response = await fetch(app + '/aleph.json', { cache: 'no-store' });
+            if (response.ok) manifest = await response.json();
+            if (manifest?.commit === process.env.GITHUB_SHA) break;
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          }
+          assert.equal(manifest?.commit, process.env.GITHUB_SHA, 'Latest commit was not deployed');
+          assert.equal(manifest?.step, 8);
+          assert.ok(manifest.allowedRoutes.some(r => r.service === 'notes'
+            && r.method === 'GET' && r.pathPattern === '/api/notes/:id'
+            && r.zone === 'my-notes'));
+          assert.ok(manifest.allowedRoutes.some(r => r.service === 'notices'
+            && r.method === 'GET' && r.pathPattern === '/api/notices'
+            && r.zone === 'class-notices'));
+          assert.equal(manifest.allowedRoutes.some(r => r.service === 'notices'
+            && ['PUT', 'POST', 'DELETE'].includes(r.method)), false);
+          const anonymous = await fetch(app + '/api/notices');
+          assert.equal(anonymous.status, 401, 'Anonymous notice list was not blocked');
+          const write = await fetch(app + '/api/notices', { method: 'PUT' });
+          assert.equal(write.status, 405, 'Notice writes were not blocked');
+          console.log('Deployed S08 zones OK:', manifest.commit.slice(0, 12),
+            '/ notices anonymous=', anonymous.status, '/ write=', write.status);
+          JS
       - name: Local static build
         run: node scripts/build-public.mjs --local
