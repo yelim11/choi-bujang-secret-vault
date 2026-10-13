@@ -24,6 +24,10 @@ function isCompositeRisk(request) {
 // 개별 메모의 실제 소유권은 API가 저장된 owner_id와 검증된 토큰을 대조합니다.
 function knownNotesRoute(request) {
   if (request.service !== 'notes' || typeof request.path !== 'string') return false;
+  // 계약 v1은 쿼리 원문을 제공하지 않으므로 그 안의 구역/권한 선택을 판정할 수 없습니다.
+  // UI의 정상 메모 경로는 쿼리를 사용하지 않습니다. 해시까지 빈 쿼리와 일치해야 허용합니다.
+  const emptyQueryHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  if (request.queryLength !== 0 || request.querySha256 !== emptyQueryHash) return false;
   const method = request.method;
   const path = request.path;
   const route = request.route;
