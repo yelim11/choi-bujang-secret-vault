@@ -116,3 +116,62 @@ test('S08 note lookup requires both id and verified owner in database query', as
   assert.match(ownedNote, /\.eq\('id', id\)[\s\S]*?\.eq\('owner_id', userId\)/u);
   assert.match(source, /\.eq\('owner_id', identity\.userId\)/u);
 });
+
+
+test('S08 A can read owned note, B cannot read A note even with valid UUID', async () => {
+  const { ownedNote } = await import('../api/notes.js');
+  const ownerA = '11111111-1111-4111-8111-111111111111';
+  const ownerB = '22222222-2222-4222-8222-222222222222';
+  const noteA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const noteB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const rows = [
+    { id: noteA, owner_id: ownerA, title: 'A', content: 'fake A' },
+    { id: noteB, owner_id: ownerB, title: 'B', content: 'fake B' },
+  ];
+
+  const makeDb = (ignoreOwnerFilter = false) => {
+    const queries = [];
+    return {
+      queries,
+      from(table) {
+        assert.equal(table, 'notes');
+        const filters = [];
+        queries.push(filters);
+        const builder = {
+          select(columns) {
+            assert.match(columns, /owner_id/u);
+            return builder;
+          },
+          eq(column, value) {
+            filters.push([column, value]);
+            return builder;
+          },
+          async maybeSingle() {
+            const data = rows.find(row =>
+              filters.every(([column, value]) =>
+                ignoreOwnerFilter && column === 'owner_id'
+                  ? true : row[column] === value)) ?? null;
+            return { data, error: null };
+          },
+        };
+        return builder;
+      },
+    };
+  };
+
+  const db = makeDb();
+  const own = await ownedNote(db, noteA, ownerA);
+  assert.equal(own.data?.id, noteA);
+  assert.deepEqual(db.queries[0], [['id', noteA], ['owner_id', ownerA]]);
+
+  const foreign = await ownedNote(db, noteA, ownerB);
+  assert.equal(foreign.data, null, 'B must never receive A note');
+  assert.deepEqual(db.queries[1], [['id', noteA], ['owner_id', ownerB]]);
+
+  const dbReturningWrongOwner = makeDb(true);
+  const deniedAgain = await ownedNote(dbReturningWrongOwner, noteA, ownerB);
+  assert.equal(deniedAgain.data, null, 'Unexpected backend row must still fail closed');
+
+  const ownB = await ownedNote(db, noteB, ownerB);
+  assert.equal(ownB.data?.id, noteB);
+});
