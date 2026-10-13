@@ -26,5 +26,23 @@ jobs:
         run: npm run fixture:7
       - name: Stage 5 and 8 API ownership regression
         run: npm run test:r5
+      - name: Create ignored submission explanation
+        run: |
+          cat > bundle-notes.json <<'JSON'
+          {
+            "explanation": "8단계 판정기에서 등록 기기, 추가 인증, 자원 서비스와 정확한 경로·메서드를 검사하고 미허용 구역은 거부합니다.\n자료 서버에서는 검증된 사용자 ID와 저장된 owner_id를 목록·단건·수정·삭제 DB 조건에 적용하여 사용자 간 자료 접근을 격리합니다.\n정상 A 메모 조회와 타인 B의 A 메모 조회 거부를 회귀 시험하며, 실제 심판 판정은 별도로 확인합니다."
+          }
+          JSON
+      - name: Generate self-check submission JSON
+        run: npm run bundle
+      - name: Validate self-check outcomes
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const b=JSON.parse(fs.readFileSync('artifacts/submission.json','utf8')); if(b.step!==8 || !b.policyRules.includes('resource_boundary') || b.attackAttempts.some(a=>a.observed.includes('검증 실패') || a.observed.includes('확인 실패'))){throw Error('Submission self-check failed')} console.log('S08 bundle self-check OK:', b.attackAttempts.length, 'requests')"
+      - name: Preserve submission JSON as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aleph-stage8-submission
+          path: artifacts/submission.json
+          if-no-files-found: error
       - name: Local static build
         run: node scripts/build-public.mjs --local
