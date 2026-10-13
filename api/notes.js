@@ -63,7 +63,7 @@ export async function ownedNote(supabase, id, userId) {
     .maybeSingle();
 
   if (error) return { error };
-  if (!data || data.owner_id !== userId) return { data: null };
+  if (!data || data.id !== id || data.owner_id !== userId) return { data: null };
   return { data };
 }
 

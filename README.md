@@ -157,6 +157,15 @@ npm run bundle
 - `api/notes.js`의 `ownedNote` 단건 조회에 `.eq('owner_id', userId)`를 추가해, 서버에서 검증된 사용자와 DB 소유자가 다른 행은 조회 단계에서 제외합니다. 기존 조회 결과 검사·PUT/DELETE 소유권 조건·목록 소유자 필터는 유지합니다.
 - 이는 실제 API의 소유권 검증을 강화하는 최소 변경이며, 판정기에 소유자 정보가 전달되지 않는 `aleph.decision.v1` 계약의 한계는 그대로입니다. 심판 재통과와 본인/타인 계정 실측은 **미확인**입니다. 네트워크 DNS 제한으로 전체 저장소 git clone 및 npm 실행도 미실행입니다.
 
+### 8단계 최종 회귀 검증 (S08)
+
+- 실제 Supabase 스키마를 확인했습니다. `notes` 테이블에 4개 메모가 2개 사용자에게 3/1개씩 소유 배정되어 있고, `owner_id IS NULL` 행은 없습니다. 실제 메모 내용과 사용자 식별값은 공개하지 않습니다.
+- `api/notes.js`는 검증된 로그인 사용자 ID를 이용해 **단건 DB 조회에서 ID와 owner_id를 동시에 필터링**하며, 반환 행의 `id` 및 `owner_id`를 다시 확인합니다. 목록/수정/삭제의 이전 소유권 검사는 유지합니다.
+- `test/r5.test.mjs`는 가상 A·B 계정과 데이터베이스로 자기 메모 조회 허용, 타인의 정상 UUID 조회 거부, 잘못 반환된 소유자/자료 ID 거부를 검증합니다.
+- `.github/workflows/s08-verification.yml`의 Node.js 22 자동화는 `npm run decider:test`, `npm run fixture:7`, `npm run test:r5`, `npm run bundle`, 로컬 빌드를 실제로 실행합니다. 제출 설명 `bundle-notes.json`과 `artifacts/submission.json`은 Git에 커밋하지 않고, 생성된 제출 JSON만 GitHub Actions 아티팩트로 보관합니다.
+- 작업 파일에는 실제 학생 토큰, 비밀번호, 메모 본문, 기기 개인키, Supabase secret을 넣지 않았습니다.
+- **실제 심판 재판정은 별개입니다.** 이전 36점 판정은 DB 소유자 필터를 강화하기 전 커밋이므로, 최신 커밋을 다시 심판에 제출하여 확인해야 합니다.
+
 ## 제출
 
 로컬에 Git에 올리지 않는 `bundle-notes.json`을 준비한 뒤 `npm run bundle`을 실행해야 합니다. 제출 묶음은 실제 명령이 성공한 경우에만 생성 완료로 기록합니다.

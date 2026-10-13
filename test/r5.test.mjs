@@ -129,7 +129,7 @@ test('S08 A can read owned note, B cannot read A note even with valid UUID', asy
     { id: noteB, owner_id: ownerB, title: 'B', content: 'fake B' },
   ];
 
-  const makeDb = (ignoreOwnerFilter = false) => {
+  const makeDb = ({ ignoreOwnerFilter = false, ignoreIdFilter = false } = {}) => {
     const queries = [];
     return {
       queries,
@@ -149,7 +149,7 @@ test('S08 A can read owned note, B cannot read A note even with valid UUID', asy
           async maybeSingle() {
             const data = rows.find(row =>
               filters.every(([column, value]) =>
-                ignoreOwnerFilter && column === 'owner_id'
+                (ignoreOwnerFilter && column === 'owner_id') || (ignoreIdFilter && column === 'id')
                   ? true : row[column] === value)) ?? null;
             return { data, error: null };
           },
@@ -168,9 +168,13 @@ test('S08 A can read owned note, B cannot read A note even with valid UUID', asy
   assert.equal(foreign.data, null, 'B must never receive A note');
   assert.deepEqual(db.queries[1], [['id', noteA], ['owner_id', ownerB]]);
 
-  const dbReturningWrongOwner = makeDb(true);
+  const dbReturningWrongOwner = makeDb({ ignoreOwnerFilter: true });
   const deniedAgain = await ownedNote(dbReturningWrongOwner, noteA, ownerB);
   assert.equal(deniedAgain.data, null, 'Unexpected backend row must still fail closed');
+
+  const dbReturningWrongId = makeDb({ ignoreIdFilter: true });
+  const deniedWrongId = await ownedNote(dbReturningWrongId, noteB, ownerA);
+  assert.equal(deniedWrongId.data, null, 'Unexpected note ID must still fail closed');
 
   const ownB = await ownedNote(db, noteB, ownerB);
   assert.equal(ownB.data?.id, noteB);
