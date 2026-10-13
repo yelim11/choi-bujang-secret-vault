@@ -22,6 +22,16 @@ function isCompositeRisk(request) {
 // 서비스/메서드/route와 실제 path를 함께 대조합니다.
 // 기능 선택에 쿼리를 쓰지 않으며, :id는 한 경로 세그먼트만 받습니다.
 // 개별 메모의 실제 소유권은 API가 저장된 owner_id와 검증된 토큰을 대조합니다.
+// 판정 계약에 소유자 필드는 없습니다. 따라서 엔진이 검증해 제공한 공식
+// 가상 주체/기기와 연결된 연습 자원에만 이 판정기 단독 GET 접근을 허용합니다.
+// 실제 학생 메모의 소유권 검사는 api/notes.js의 DB owner_id 조건이 맡습니다.
+function isFixtureOwner(request) {
+  return request.classId === 'class_fixture'
+    && request.projectId === 'project_fixture'
+    && request.subjectId === 'learner_fixture'
+    && request.deviceId === 'aaaaaaaaaaaaaaaa';
+}
+
 function knownNotesRoute(request) {
   if (typeof request.path !== 'string') return false;
   // 계약 v1은 쿼리 원문을 제공하지 않으므로 그 안의 구역/권한 선택을 판정할 수 없습니다.
@@ -41,17 +51,17 @@ function knownNotesRoute(request) {
   const path = request.path;
   const route = request.route;
   if (path === '/notes' || path === '/api/notes') {
-    return (method === 'GET' && route === `${method} ${path}`)
-      || (method === 'POST' && route === `${method} ${path}`);
+    // 넓은 목록 경로를 모든 주체의 메모 구역 권한으로 해석하지 않습니다.
+    if (method === 'GET') return isFixtureOwner(request) && route === `GET ${path}`;
+    return method === 'POST' && route === `POST ${path}`;
   }
   // export 등 기능 경로는 메모 ID로 취급하지 않습니다.
   const id = /^\/notes\/([^/?#]+)$/u.exec(path)?.[1];
   // 실서비스 메모 ID는 API와 동일한 UUID 규약을 사용합니다.
   // 임의 구역명(other, foreign 등)이나 기능명(export)을 :id로 받지 않습니다.
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-  const fixtureDemo = id === 'demo' && request.classId === 'class_fixture' &&
-    request.projectId === 'project_fixture' &&
-    request.subjectId === 'learner_fixture' && request.signals?.source === 'judge_fixture';
+  const fixtureDemo = id === 'demo' && isFixtureOwner(request) &&
+    request.signals?.source === 'judge_fixture';
   if (!id) return false;
   // 계약 v1은 메모 소유자를 제공하지 않습니다. UUID 형식은 권한의 증거가 아닙니다.
   // 검증되지 않은 단건 GET은 fail-closed; API는 별도로 소유자 조건을 검증합니다.
