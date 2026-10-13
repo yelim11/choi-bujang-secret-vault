@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
+import { parseResourceTarget, routeAllowed } from '../src/resource-policy.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
@@ -29,12 +30,6 @@ function noteText(value, maxLength) {
   return normalized && normalized.length <= maxLength ? normalized : null;
 }
 
-function noteId(request) {
-  const value = request.query?.id;
-  const candidate = Array.isArray(value) ? value[0] : value;
-  if (candidate == null || candidate === '') return null;
-  return typeof candidate === 'string' && UUID.test(candidate) ? candidate : false;
-}
 
 let runtime;
 function getRuntime() {
@@ -79,8 +74,12 @@ export default async function handler(request, response) {
     return response.status(401).json({ error: 'UNAUTHORIZED' });
   }
 
-  const id = noteId(request);
-  if (id === false) return response.status(400).json({ error: 'INVALID_NOTE_ID' });
+  const target = parseResourceTarget(request, 'notes');
+  if (target.invalid) return response.status(400).json({ error: 'INVALID_RESOURCE_PATH' });
+  if (!routeAllowed(config, target, request.method)) {
+    return response.status(403).json({ error: 'RESOURCE_ZONE_DENIED' });
+  }
+  const id = target.id;
 
   if (id === null) {
     if (request.method === 'GET') {
@@ -148,7 +147,7 @@ export default async function handler(request, response) {
 
     const { data, error } = await current.supabase
       .from('notes')
-      .update({ title, content, owner_id: identity.userId })
+      .update({ title, content })
       .eq('id', id)
       .eq('owner_id', identity.userId)
       .select('id,title,content,owner_id')
