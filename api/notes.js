@@ -54,7 +54,7 @@ function getRuntime() {
 
 const publicNote = row => ({ id: row.id, title: row.title, body: row.content });
 
-async function ownedNote(supabase, id, userId) {
+export async function ownedNote(supabase, id, userId) {
   const { data, error } = await supabase
     .from('notes')
     .select('id,title,content,owner_id')
