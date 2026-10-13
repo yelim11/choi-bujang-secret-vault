@@ -119,6 +119,21 @@ test('8단계 정확한 메모/공지 경로와 typed 자원 ID', () => {
   assert.equal(belongsToVerifiedOwner({ owner_id: A }, { userId: B }), false);
 });
 
+test('8단계 본인 목록과 포괄 목록 정책 분리', () => {
+  const own = parseResourceTarget({ url: '/api/my/notes' }, 'notes');
+  assert.equal(own.invalid, false);
+  assert.equal(own.pathPattern, '/api/my/notes');
+  assert.equal(own.resourceId, 'notes:own-list');
+  assert.equal(routeAllowed(config, own, 'GET'), true);
+  assert.equal(routeAllowed(config, own, 'POST'), false);
+  const broad = parseResourceTarget({ url: '/api/notes' }, 'notes');
+  assert.equal(broad.invalid, false);
+  assert.equal(routeAllowed(config, broad, 'GET'), false);
+  assert.equal(routeAllowed(config, broad, 'POST'), true);
+  assert.equal(parseResourceTarget({ url: '/api/my/notes?owner_id=foreign' }, 'notes').invalid, true);
+  assert.equal(parseResourceTarget({ url: '/api/my/notes/export' }, 'notes').invalid, true);
+});
+
 test('8단계 export/중복 id/알 수 없는 쿼리/대상 충돌은 거부', () => {
   const paths = [
     { url: '/api/notes/export' },

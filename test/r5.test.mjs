@@ -184,7 +184,7 @@ test('S08 deployed route manifest specifies distinct verified resource zones', a
   const live = JSON.parse(await readFile(new URL('../aleph.config.json', import.meta.url), 'utf8'));
   assert.equal(live.step, 8);
   const expected = [
-    ['notes', 'GET', '/api/notes', 'my-notes'],
+    ['notes', 'GET', '/api/my/notes', 'my-notes'],
     ['notes', 'POST', '/api/notes', 'my-notes'],
     ['notes', 'GET', '/api/notes/:id', 'my-notes'],
     ['notes', 'PUT', '/api/notes/:id', 'my-notes'],
@@ -192,6 +192,9 @@ test('S08 deployed route manifest specifies distinct verified resource zones', a
     ['notices', 'GET', '/api/notices', 'class-notices'],
   ];
   assert.ok(Array.isArray(live.allowedRoutes));
+  assert.equal(live.allowedRoutes.some(r => r.service === 'notes'
+    && r.method === 'GET' && r.pathPattern === '/api/notes'), false,
+    'Broad GET /api/notes must not appear as a self-only zone');
   for (const [service, method, pathPattern, zone] of expected) {
     assert.equal(live.allowedRoutes.filter(r => r.service === service
       && r.method === method && r.pathPattern === pathPattern && r.zone === zone).length, 1);

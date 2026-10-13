@@ -18,18 +18,24 @@ function engineTarget(request) {
       || !Number.isInteger(request.policyRevision) || request.policyRevision < 1
       || !Number.isFinite(Date.parse(request.at ?? ''))
       || Math.abs(Date.now() - Date.parse(request.at)) > 5000) return null;
-  const match = ENGINE_PATH.exec(request.path ?? '');
-  if (!match || request.service !== match[2]) return null;
-  const [, api, kind, id] = match;
+  const myList = request.path === '/api/my/notes';
+  const match = myList ? null : ENGINE_PATH.exec(request.path ?? '');
+  if (!myList && (!match || request.service !== match[2])) return null;
+  const [, api, kind, id] = myList ? [null, 'api/', 'notes', undefined] : match;
+  if (myList && request.service !== 'notes') return null;
   if (id && !UUID_PATTERN.test(id)) return null;
   const method = request.method;
+  if (kind === 'notes' && !id && method === 'GET' && !myList) return null;
+  if (myList && method !== 'GET') return null;
   if (id ? !['GET', 'PUT', 'DELETE'].includes(method)
     : !['GET', 'POST'].includes(method)) return null;
-  if (request.route !== method + ' /' + (api ?? '') + kind
-      + (id ? '/:id' : '')) return null;
+  const expectedRoute = myList ? 'GET /api/my/notes'
+    : method + ' /' + (api ?? '') + kind + (id ? '/:id' : '');
+  if (request.route !== expectedRoute) return null;
   const zone = kind === 'notes' ? 'my-notes'
     : method === 'GET' ? 'class-notices' : 'instructor-materials';
-  const pattern = '/api/' + kind + (id ? '/:id' : '');
+  const pattern = myList ? '/api/my/notes'
+    : '/api/' + kind + (id ? '/:id' : '');
   if ((config.allowedRoutes ?? []).filter(r => r.service === kind
     && r.method === method && r.pathPattern === pattern && r.zone === zone).length !== 1) {
     return null;

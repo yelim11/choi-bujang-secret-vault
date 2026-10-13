@@ -8,7 +8,9 @@ export function parseResourceTarget(request, kind) {
   let url;
   try { url = new URL(request?.url ?? '/api/' + kind, 'https://placeholder.invalid'); }
   catch { return { invalid: true }; }
-  const prefix = '/api/' + kind;
+  // 내 목록은 구역 표의 /api/my/notes 로 명시하고, 포괄 목록과 혼동하지 않습니다.
+  const prefix = kind === 'notes' && url.pathname === '/api/my/notes'
+    ? '/api/my/notes' : '/api/' + kind;
   const path = url.pathname;
   let pathId = null;
   if (path !== prefix) {

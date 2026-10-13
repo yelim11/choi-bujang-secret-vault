@@ -70,6 +70,11 @@ jobs:
           assert.ok(manifest.allowedRoutes.some(r => r.service === 'notes'
             && r.method === 'GET' && r.pathPattern === '/api/notes/:id'
             && r.zone === 'my-notes'));
+          assert.ok(manifest.allowedRoutes.some(r => r.service === 'notes'
+            && r.method === 'GET' && r.pathPattern === '/api/my/notes'
+            && r.zone === 'my-notes'));
+          assert.equal(manifest.allowedRoutes.some(r => r.service === 'notes'
+            && r.method === 'GET' && r.pathPattern === '/api/notes'), false);
           assert.ok(manifest.allowedRoutes.some(r => r.service === 'notices'
             && r.method === 'GET' && r.pathPattern === '/api/notices'
             && r.zone === 'class-notices'));

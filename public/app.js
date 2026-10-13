@@ -114,7 +114,7 @@ const noteEditor = note => {
 
 async function loadNotes() {
   try {
-    const response = await apiRequest('/api/notes');
+    const response = await apiRequest('/api/my/notes');
     if (!response.ok) {
       setStatus(workspaceStatus, await apiError(response, '자료를 읽을 수 없습니다.'), true);
       notesRoot.replaceChildren();

@@ -12,7 +12,7 @@
     {
       "service": "notes",
       "method": "GET",
-      "pathPattern": "/api/notes",
+      "pathPattern": "/api/my/notes",
       "zone": "my-notes"
     },
     {

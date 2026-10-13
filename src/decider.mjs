@@ -21,9 +21,14 @@ const FIXTURE_GRANTS = Object.freeze([
     ...LEARNER, service: 'notes', method, path: '/notes/demo',
     route: method + ' /notes/:id',
   })),
-  ...['/notes', '/api/notes'].flatMap(path => ['GET', 'POST'].map(method =>
-    Object.freeze({ ...LEARNER, service: 'notes', method, path,
-      route: method + ' ' + path }))),
+  Object.freeze({
+    ...LEARNER, service: 'notes', method: 'GET',
+    path: '/api/my/notes', route: 'GET /api/my/notes',
+  }),
+  ...['/notes', '/api/notes'].map(path => Object.freeze({
+    ...LEARNER, service: 'notes', method: 'POST', path,
+    route: 'POST ' + path,
+  })),
   ...['/notices', '/api/notices'].map(path =>
     Object.freeze({ ...LEARNER, service: 'notices',
       method: 'GET', path, route: 'GET ' + path })),
