@@ -5,7 +5,7 @@ import { deploymentIdentity } from './deployment-identity.mjs';
 const root = resolve(import.meta.dirname, '..');
 const config = JSON.parse(await readFile(resolve(root, 'aleph.config.json'), 'utf8'));
 
-if (![2, 3, 4, 5].includes(config.step)) {
+if (![2, 3, 4, 5, 6, 7, 8].includes(config.step)) {
   throw new Error('현재 저장점 설정과 배포 식별 단계가 맞지 않습니다.');
 }
 
@@ -19,7 +19,7 @@ console.log(`${config.step}단계 공개 정적 data.json에는 메모 본문을
 
 if (!process.argv.includes('--local')) {
   const identity = deploymentIdentity(process.env, config);
-  if (config.step === 5) {
+  if (config.step >= 5) {
     identity.allowedRoutes = Array.isArray(config.allowedRoutes) ? [...config.allowedRoutes] : [];
     identity.originalApiUrl = config.originalApiUrl;
   }
