@@ -124,7 +124,7 @@ npm run fixture:7
 
 - 기존 메모 구역: `notes`, 개별 자원 ID: 저장된 `notes.id`(UUID), API: `/api/notes`, `/api/notes/:id`. 기존 URL/화면을 바꾸지 않습니다.
 - 강사 공지 구역: `notices` (별도 자원 네임스페이스 예약). **현재 저장소에는 공지 저장 테이블, 운영 엔진의 검증된 강사 역할/소유권 정보, 공지 수정 API가 없습니다.** 강사 공지 수정은 허용하지 않으며 실제 공지 편집 기능이 구현되었다고 주장하지 않습니다.
-- 판정기 `resource_boundary` 규칙은 엔진의 `service`, `method`, `route`, `path`를 모두 대조합니다. 정해진 메모 경로만 허용 후보이며, 임의 구역·`/notes/export`·메서드 불일치는 `deny / resource_not_allowed` 처리합니다. 실제 사용 시 새 reasonCode의 운영 등록부 허용 여부 확인이 필요합니다. 등록되지 않은 거부 코드는 엔진의 기본 거부로 처리될 수 있습니다.
+- 판정기 `resource_boundary` 규칙은 엔진의 `service`, `method`, `route`, `path`를 모두 대조합니다. 정해진 메모 경로만 허용 후보이며, 임의 구역·`/notes/export`·메서드 불일치는 `deny / route_not_allowed` 처리합니다. 실제 사용 시 새 reasonCode의 운영 등록부 허용 여부 확인이 필요합니다. 등록되지 않은 거부 코드는 엔진의 기본 거부로 처리될 수 있습니다.
 - 6단계 기기 확인과 7단계 추가 인증 규칙은 유지합니다. 쿼리나 브라우저 본문의 `role`, `owner_id`를 판정 권한으로 사용하지 않습니다.
 - 자료 API는 이미 `createLoginVerifier`로 로그인 증명을 검증하며, 목록은 검증된 `userId`로 필터링합니다. 단건 GET/PUT/DELETE는 저장된 `owner_id`와 검증된 `userId`를 대조하고, 수정/삭제 시 DB 쿼리에도 `owner_id` 조건을 재사용합니다. 타인 자료는 `NOTE_NOT_FOUND`로 처리해 존재 여부를 노출하지 않습니다.
 - **한계:** 현재 `aleph.decision.v1` 판정 요청에는 소유자/강사 권한에 대한 검증 필드가 없습니다. 판정기만으로 A 메모와 B 메모의 권한을 구분했다고 말할 수 없습니다. 이 부분은 최종 API의 저장된 소유자 검사에 의존하며, 강사 공지 권한 시나리오는 검증된 엔진 계약이 추가되기 전까지 미구현/미실행입니다.
@@ -148,7 +148,7 @@ npm run bundle
 
 - 8단계 최초 판정(커밋 `83c854439190`)에서 `S08_OTHER_ZONE_ALLOWED`, 36/100점을 확인했습니다. 원인은 `/notes/:id`의 ID를 임의 문자열로 인정하여 다른 구역 이름이 개별 메모로 분류될 수 있는 점입니다.
 - 판정기의 메모 ID를 API와 동일한 UUID 형식으로 제한했습니다. 가상 테스트의 `/notes/demo`는 엔진이 검증한 테스트 반/프로젝트/주체/사건 출처 조합에서만 예외입니다.
-- `/notes/other`, `/notes/other-user-note`, `/notes/export`는 `deny / resource_not_allowed`를 기대하도록 회귀 시험을 추가했습니다.
+- `/notes/other`, `/notes/other-user-note`, `/notes/export`는 `deny / route_not_allowed`를 기대하도록 회귀 시험을 추가했습니다.
 - **남은 한계:** UUID의 실제 소유자는 판정 요청 계약에 제공되지 않습니다. API의 DB `owner_id` 확인이 최종 권한 경계이며, 이번 변경만으로 심판 재통과를 주장하지 않습니다.
 
 ### S08 2차 실패 후 DB 소유권 조건 강화
@@ -169,7 +169,7 @@ npm run bundle
 ### 8단계 S08 추가 수정 · 소유권 근거 없는 단건 조회 제한
 
 - 이전 판정기는 유효 UUID로 된 `GET /notes/:id`를 소유권 확인 없이 `allow`했습니다. ID 형식만으로 소유권을 판단할 수 없습니다.
-- 실제 `aleph.decision.v1` 입력에는 메모 소유자 정보가 없습니다. 검증되지 않은 UUID 단건 GET은 `deny / resource_not_allowed`로 기본 거부합니다.
+- 실제 `aleph.decision.v1` 입력에는 메모 소유자 정보가 없습니다. 검증되지 않은 UUID 단건 GET은 `deny / route_not_allowed`로 기본 거부합니다.
 - 6~7단계 가상 사건 `/notes/demo`, 메모 목록·작성 및 수정·삭제 규칙은 그대로 유지합니다.
 - 실제 웹 API의 단건 GET은 검증된 사용자 ID와 DB `owner_id`를 대조해 본인 메모만 반환하도록 유지합니다.
 - **중요한 한계:** SDP 엔진이 실제 단건 GET을 판정기로 중계하는 환경이라면 본인의 단건 GET도 거부됩니다. 안전하게 허용하려면 엔진이 신뢰할 수 있는 소유자 검증 결과를 계약에 추가해야 합니다. 기존 계약에 없는 사용자/역할 필드를 만들지는 않았습니다.
@@ -190,6 +190,12 @@ npm run bundle
 - 로그인 경로는 `authentication` 구역에 별도로 둡니다. 공지 쓰기는 등록하지 않았고 실제 공지 내용을 새로 만들지 않았습니다. 공지는 현재 빈 목록을 제공하며 쓰기를 허용하지 않습니다.
 - 판정기는 기존 요청 계약의 `service`, `method`, `path`, `route`, 기기 등록, 추가 인증 정보를 사용하며, 구역 밖 요청을 거부합니다. `owner_id`에 따른 메모 소유자 검사는 기존 서버 API에서 유지합니다.
 - 저장된 notes 자료와 기존 `/api/notes`, `/api/notes/:id` 주소·내용·CRUD는 바꾸지 않았습니다. 실제 심판 판정은 재제출 후 별도 확인해야 합니다.
+
+### 8단계 구역 거부 reasonCode 계약 정리
+
+- 최초 구역 정책은 임의 사유 코드 `resource_not_allowed`를 사용했으나 운영 등록부 허용 여부를 검증하지 못했습니다.
+- 알려진 참고 구현의 경로 거부 코드 `route_not_allowed`로 맞춰 잘못된 경로·서비스·쿼리 구역 접근에 동일한 `deny`를 반환합니다. `RULE_IDS`의 실제 구현 규칙 `resource_boundary`는 보존합니다.
+- 참조 코드 사용은 실제 채점 결과의 보증이 아닙니다. 운영 심판의 응답 형식·등록부 판정은 재제출 후 확인해야 합니다.
 
 ## 제출
 

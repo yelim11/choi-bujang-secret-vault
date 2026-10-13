@@ -73,7 +73,7 @@ export async function decide(request) {
   } else if (!knownNotesRoute(request)) {
     // 미등록 자원/정확하지 않은 메서드·경로 및 공지 쓰기는 거부합니다.
     decision = 'deny';
-    reasonCode = 'resource_not_allowed';
+    reasonCode = 'route_not_allowed';
     ruleIds = ['resource_boundary'];
   } else if (isCompositeRisk(request)) {
     const verified = request.stepUp?.verified === true &&
