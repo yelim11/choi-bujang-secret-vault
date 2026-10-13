@@ -179,3 +179,25 @@ test('S08 A can read owned note, B cannot read A note even with valid UUID', asy
   const ownB = await ownedNote(db, noteB, ownerB);
   assert.equal(ownB.data?.id, noteB);
 });
+
+test('S08 deployed route manifest specifies distinct verified resource zones', async () => {
+  const live = JSON.parse(await readFile(new URL('../aleph.config.json', import.meta.url), 'utf8'));
+  assert.equal(live.step, 8);
+  const expected = [
+    ['notes', 'GET', '/api/notes', 'my-notes'],
+    ['notes', 'POST', '/api/notes', 'my-notes'],
+    ['notes', 'GET', '/api/notes/:id', 'my-notes'],
+    ['notes', 'PUT', '/api/notes/:id', 'my-notes'],
+    ['notes', 'DELETE', '/api/notes/:id', 'my-notes'],
+    ['notices', 'GET', '/api/notices', 'class-notices'],
+  ];
+  assert.ok(Array.isArray(live.allowedRoutes));
+  for (const [service, method, pathPattern, zone] of expected) {
+    assert.equal(live.allowedRoutes.filter(r => r.service === service
+      && r.method === method && r.pathPattern === pathPattern && r.zone === zone).length, 1);
+  }
+  assert.equal(live.allowedRoutes.some(r => r.service === 'notices'
+    && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(r.method)), false);
+  assert.equal(new Set(live.allowedRoutes.map(r => r.method + ' ' + r.pathPattern)).size,
+    live.allowedRoutes.length);
+});

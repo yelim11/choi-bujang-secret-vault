@@ -23,7 +23,16 @@ function isCompositeRisk(request) {
 // 기능 선택에 쿼리를 쓰지 않으며, :id는 한 경로 세그먼트만 받습니다.
 // 개별 메모의 실제 소유권은 API가 저장된 owner_id와 검증된 토큰을 대조합니다.
 function knownNotesRoute(request) {
-  if (request.service !== 'notes' || typeof request.path !== 'string') return false;
+  if (typeof request.path !== 'string') return false;
+  // 검증된 공지 서비스의 조회 구역은 쓰기 구역과 분리합니다.
+  // 강사 권한을 증명할 계약이 없으므로 일반 계정의 공지 쓰기는 허용하지 않습니다.
+  if (request.service === 'notices') {
+    return request.method === 'GET' && (
+      (request.path === '/notices' && request.route === 'GET /notices') ||
+      (request.path === '/api/notices' && request.route === 'GET /api/notices')
+    );
+  }
+  if (request.service !== 'notes') return false;
   // 계약 v1은 쿼리 원문을 제공하지 않으므로 그 안의 구역/권한 선택을 판정할 수 없습니다.
   // UI의 정상 메모 경로는 쿼리를 사용하지 않습니다. 해시까지 빈 쿼리와 일치해야 허용합니다.
   const emptyQueryHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -31,9 +40,9 @@ function knownNotesRoute(request) {
   const method = request.method;
   const path = request.path;
   const route = request.route;
-  if (path === '/notes') {
-    return (method === 'GET' && route === 'GET /notes')
-      || (method === 'POST' && route === 'POST /notes');
+  if (path === '/notes' || path === '/api/notes') {
+    return (method === 'GET' && route === `${method} ${path}`)
+      || (method === 'POST' && route === `${method} ${path}`);
   }
   // export 등 기능 경로는 메모 ID로 취급하지 않습니다.
   const id = /^\/notes\/([^/?#]+)$/u.exec(path)?.[1];
@@ -62,7 +71,7 @@ export async function decide(request) {
     decision = 'deny';
     reasonCode = 'device_not_registered';
   } else if (!knownNotesRoute(request)) {
-    // /notices 등 강사 공지 구역은 검증된 강사 권한 계약이 없으므로 허용하지 않습니다.
+    // 미등록 자원/정확하지 않은 메서드·경로 및 공지 쓰기는 거부합니다.
     decision = 'deny';
     reasonCode = 'resource_not_allowed';
     ruleIds = ['resource_boundary'];
