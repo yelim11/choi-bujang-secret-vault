@@ -38,6 +38,26 @@ export async function checkDecider({ decide, ruleIds }) {
       decision: 'allow' },
     );
   }
+  if (ruleIds.includes('resource_boundary')) {
+    checks.push(
+      { name: '알 수 없는 자료 구역 거부',
+        request: { ...normal, requestId: randomUUID(),
+          service: 'notices', path: '/notices/notice-1',
+          route: 'PUT /notices/:id', method: 'PUT' },
+        decision: 'deny', reasonCode: 'resource_not_allowed' },
+      { name: '기능 경로를 메모 ID로 위장한 요청 거부',
+        request: { ...normal, requestId: randomUUID(),
+          path: '/notes/export', route: 'GET /notes/:id' },
+        decision: 'deny', reasonCode: 'resource_not_allowed' },
+      { name: '정확하지 않은 경로 메서드 조합 거부',
+        request: { ...normal, requestId: randomUUID(), method: 'PUT' },
+        decision: 'deny', reasonCode: 'resource_not_allowed' },
+      { name: '지역만 변경된 자기 메모 경로 허용',
+        request: { ...normal, requestId: randomUUID(),
+          signals: { source: 'judge_fixture', region: 'foreign',
+            network: 'usual', hour: 14 } }, decision: 'allow' },
+    );
+  }
   const results = [];
   for (const item of checks) {
     const response = await decide(item.request);
