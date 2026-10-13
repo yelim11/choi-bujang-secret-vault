@@ -5,6 +5,7 @@ export const RULE_IDS = Object.freeze([
 ]);
 
 const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+const REQUEST_KEYS = 'at,classId,deviceId,deviceRegistered,method,path,policyRevision,projectId,queryLength,querySha256,recentEvents,requestId,route,schema,service,signals,stepUp,subjectId';
 const LEARNER = Object.freeze({
   classId: 'class_fixture', projectId: 'project_fixture',
   subjectId: 'learner_fixture', deviceId: 'aaaaaaaaaaaaaaaa',
@@ -107,7 +108,8 @@ export async function decide(request) {
   if (request?.deviceRegistered !== true) {
     return reply('deny', 'device_not_registered', ['device_registered']);
   }
-  if (request?.schema !== 'aleph.decision.v1'
+  if (!request || Object.keys(request).sort().join(',') !== REQUEST_KEYS
+      || request.schema !== 'aleph.decision.v1'
       || !await resourceAllowed(request)) {
     return reply('deny', 'route_not_allowed', ['resource_zone']);
   }
