@@ -4,6 +4,7 @@
 export const RULE_IDS = Object.freeze(['device_registered']);
 
 export async function decide(request) {
+  // false, 누락, 잘못된 자료형은 모두 미등록으로 처리합니다.
   const registered = request.deviceRegistered === true;
   return {
     schema: 'aleph.decision.v1',

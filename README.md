@@ -98,8 +98,11 @@ npm run decider:test
 이 명령은 가상 요청으로 연습하며 심판 통과 증거가 아닙니다.
 ```
 
-두 번째 항목은 `deny`와 `device_not_registered`를 확인하는 테스트입니다. 위 내용은 **예상 출력**이며 이 README 작성 시 연결 환경에서 npm 명령을 실제 실행하지 못했습니다. 최종 심판 판정은 제출 후 별도로 확인해야 합니다.
+두 번째 항목은 `deny`와 `device_not_registered`를 확인하는 테스트입니다. 위 내용은 저장소의 판정기·시험 스크립트를 별도 Node.js 폴더에 재현하여 확인한 출력입니다. 저장소 전체에서 `npm run decider:test`를 실행하거나 운영 심판 판정을 받은 것은 아닙니다. 최종 심판 판정은 제출 후 별도로 확인해야 합니다.
 
 ## 제출
+
+로컬에 Git에 올리지 않는 `bundle-notes.json`을 준비한 뒤 `npm run bundle`을 실행해야 합니다. 제출 묶음은 실제 명령이 성공한 경우에만 생성 완료로 기록합니다.
+
 
 `npm run bundle`은 학생 자기점검이며 실제 심판 판정 자체는 아닙니다. `bundle-notes.json`과 `artifacts/submission.json`은 Git에 커밋하지 않습니다.
