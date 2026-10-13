@@ -39,8 +39,13 @@ function knownNotesRoute(request) {
   const fixtureDemo = id === 'demo' && request.classId === 'class_fixture' &&
     request.projectId === 'project_fixture' &&
     request.subjectId === 'learner_fixture' && request.signals?.source === 'judge_fixture';
-  if (!id || (!uuid.test(id) && !fixtureDemo)) return false;
-  return ['GET', 'PUT', 'DELETE'].includes(method) &&
+  if (!id) return false;
+  // 계약 v1은 메모 소유자를 제공하지 않습니다. UUID 형식은 권한의 증거가 아닙니다.
+  // 검증되지 않은 단건 GET은 fail-closed; API는 별도로 소유자 조건을 검증합니다.
+  if (method === 'GET') {
+    return fixtureDemo && route === 'GET /notes/:id';
+  }
+  return uuid.test(id) && ['PUT', 'DELETE'].includes(method) &&
     route === `${method} /notes/:id`;
 }
 
