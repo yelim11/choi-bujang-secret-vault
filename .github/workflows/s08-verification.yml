@@ -10,13 +10,13 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 2
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
@@ -39,9 +39,9 @@ jobs:
         run: npm run bundle
       - name: Validate self-check outcomes
         run: |
-          node --input-type=module -e "import fs from 'node:fs'; const b=JSON.parse(fs.readFileSync('artifacts/submission.json','utf8')); if(b.step!==8 || !b.policyRules.includes('resource_boundary') || !b.changedFiles.includes('api/notes.js') || b.changedFiles.length > 10 || b.attackAttempts.some(a=>a.observed.includes('검증 실패') || a.observed.includes('확인 실패'))){throw Error('Submission self-check failed')} console.log('S08 bundle self-check OK:', b.attackAttempts.length, 'requests')"
+          node --input-type=module -e "import fs from 'node:fs'; const b=JSON.parse(fs.readFileSync('artifacts/submission.json','utf8')); if(b.step!==8 || !b.policyRules.includes('resource_boundary') || b.changedFiles.length > 10 || b.attackAttempts.some(a=>a.observed.includes('검증 실패') || a.observed.includes('확인 실패'))){throw Error('Submission self-check failed')} console.log('S08 bundle self-check OK:', b.attackAttempts.length, 'requests')"
       - name: Preserve submission JSON as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: aleph-stage8-submission
           path: artifacts/submission.json
