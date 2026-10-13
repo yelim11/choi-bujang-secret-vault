@@ -124,7 +124,7 @@ npm run fixture:7
 
 - 기존 메모 구역: `notes`, 개별 자원 ID: 저장된 `notes.id`(UUID), API: `/api/notes`, `/api/notes/:id`. 기존 URL/화면을 바꾸지 않습니다.
 - 강사 공지 구역: `notices` (별도 자원 네임스페이스 예약). **현재 저장소에는 공지 저장 테이블, 운영 엔진의 검증된 강사 역할/소유권 정보, 공지 수정 API가 없습니다.** 강사 공지 수정은 허용하지 않으며 실제 공지 편집 기능이 구현되었다고 주장하지 않습니다.
-- 판정기 `resource_boundary` 규칙은 엔진의 `service`, `method`, `route`, `path`를 모두 대조합니다. 정해진 메모 경로만 허용 후보이며, 임의 구역·`/notes/export`·메서드 불일치는 `deny / resource_not_allowed` 처리합니다. 실제 사용 시 새 reasonCode의 운영 등록부 허용 여부 확인이 필요합니다.
+- 판정기 `resource_boundary` 규칙은 엔진의 `service`, `method`, `route`, `path`를 모두 대조합니다. 정해진 메모 경로만 허용 후보이며, 임의 구역·`/notes/export`·메서드 불일치는 `deny / resource_not_allowed` 처리합니다. 실제 사용 시 새 reasonCode의 운영 등록부 허용 여부 확인이 필요합니다. 등록되지 않은 거부 코드는 엔진의 기본 거부로 처리될 수 있습니다.
 - 6단계 기기 확인과 7단계 추가 인증 규칙은 유지합니다. 쿼리나 브라우저 본문의 `role`, `owner_id`를 판정 권한으로 사용하지 않습니다.
 - 자료 API는 이미 `createLoginVerifier`로 로그인 증명을 검증하며, 목록은 검증된 `userId`로 필터링합니다. 단건 GET/PUT/DELETE는 저장된 `owner_id`와 검증된 `userId`를 대조하고, 수정/삭제 시 DB 쿼리에도 `owner_id` 조건을 재사용합니다. 타인 자료는 `NOTE_NOT_FOUND`로 처리해 존재 여부를 노출하지 않습니다.
 - **한계:** 현재 `aleph.decision.v1` 판정 요청에는 소유자/강사 권한에 대한 검증 필드가 없습니다. 판정기만으로 A 메모와 B 메모의 권한을 구분했다고 말할 수 없습니다. 이 부분은 최종 API의 저장된 소유자 검사에 의존하며, 강사 공지 권한 시나리오는 검증된 엔진 계약이 추가되기 전까지 미구현/미실행입니다.
