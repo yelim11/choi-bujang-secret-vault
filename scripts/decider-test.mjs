@@ -3,183 +3,136 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureRequests } from './fixture-7.mjs';
 
-const RESPONSE_KEYS = 'decision,reasonCode,requestId,ruleIds,schema';
+const KEYS = 'decision,reasonCode,requestId,ruleIds,schema';
 
-function validResponse(request, response, ruleIds) {
-  return response && typeof response === 'object' && !Array.isArray(response)
-    && Object.keys(response).sort().join(',') === RESPONSE_KEYS
+function responseValid(request, response, ids) {
+  return response && !Array.isArray(response)
+    && Object.keys(response).sort().join(',') === KEYS
     && response.schema === 'aleph.decision.v1'
     && response.requestId === request.requestId
     && ['allow', 'deny', 'step_up'].includes(response.decision)
-    && typeof response.reasonCode === 'string'
     && /^[a-z][a-z0-9_]{0,63}$/u.test(response.reasonCode)
     && Array.isArray(response.ruleIds) && response.ruleIds.length > 0
-    && response.ruleIds.every(id => ruleIds.includes(id));
+    && response.ruleIds.every(rule => ids.includes(rule));
 }
 
-// Local practice only. The class engine and the server judge validate live requests separately.
+// 가상 요청만 시험합니다. 사용자의 실제 토큰/자료/심판 통과 증거가 아닙니다.
 export async function checkDecider({ decide, ruleIds }) {
-  if (typeof decide !== 'function' || !Array.isArray(ruleIds)
-      || !ruleIds.includes('device_registered')) {
-    throw new Error('6단계 device_registered 규칙을 먼저 구현하고 RULE_IDS에 적어 주세요.');
+  if (typeof decide !== 'function' || !['device_registered',
+      'step_up_required', 'resource_zone'].every(rule => ruleIds.includes(rule))) {
+    throw new Error('6~8단계 규칙 ID를 확인해 주세요.');
   }
   const { normal, suspicious } = fixtureRequests();
-  const checks = [
-    { name: '등록 기기의 정상 요청', request: normal, decision: 'allow' },
-    { name: '미등록 기기의 가상 요청', request: { ...normal, requestId: randomUUID(),
-      deviceRegistered: false }, decision: 'deny', reasonCode: 'device_not_registered' },
-  ];
-  if (ruleIds.includes('step_up_required')) {
-    checks.push(
-      { name: '복합 이상 접속', request: suspicious, decision: 'step_up',
-        reasonCode: 'step_up_required' },
-      { name: '다시 확인한 복합 이상 접속', request: { ...suspicious,
-        requestId: randomUUID(), stepUp: { verified: true, authAgeSeconds: 60 } },
+  const changed = (overrides = {}) => ({ ...normal, requestId: randomUUID(), ...overrides });
+  const notice = { service: 'notices', method: 'PUT',
+    path: '/notices/notice-demo', route: 'PUT /notices/:id' };
+  const b = { subjectId: 'other_learner_fixture' };
+  const validUuid = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const cases = [
+    { name: '등록 기기의 정상 자기 메모 조회', request: normal, decision: 'allow' },
+    { name: '미등록 기기 거부', request: changed({ deviceRegistered: false }),
+      decision: 'deny', reasonCode: 'device_not_registered' },
+    { name: '문자열로 위조된 기기 등록 거부',
+      request: changed({ deviceRegistered: 'true' }),
+      decision: 'deny', reasonCode: 'device_not_registered' },
+    { name: '복합 이상 접속 추가 인증', request: suspicious,
+      decision: 'step_up', reasonCode: 'step_up_required' },
+    { name: '추가 인증된 복합 이상 접속 허용', request: { ...suspicious,
+      requestId: randomUUID(), stepUp: { verified: true, authAgeSeconds: 60 } },
       decision: 'allow' },
-    );
-  }
-  if (ruleIds.includes('resource_boundary')) {
-    checks.push(
-      { name: '알 수 없는 자료 구역 거부',
-        request: { ...normal, requestId: randomUUID(),
-          service: 'notices', path: '/notices/notice-1',
-          route: 'PUT /notices/:id', method: 'PUT' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '기능 경로를 메모 ID로 위장한 요청 거부',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/notes/export', route: 'GET /notes/:id' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '타 구역 이름을 메모 ID로 위장한 조회 거부',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/notes/other-user-note', route: 'GET /notes/:id' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '타 구역 메모 ID 명칭 거부',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/notes/other', route: 'GET /notes/:id' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '정상 형식 UUID의 타인 메모 GET 기본 거부',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/notes/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', route: 'GET /notes/:id' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '엔진 실서비스 출처에서 소유권 없는 UUID GET 거부',
-        request: { ...normal, requestId: randomUUID(),
-          signals: { source: 'none', region: 'unknown', network: 'unknown', hour: 14 },
-          path: '/notes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', route: 'GET /notes/:id' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '허용 목록 경로라도 쿼리로 다른 구역 조회 요청 시 거부',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/notes', route: 'GET /notes', method: 'GET',
-          queryLength: 7, querySha256: 'f'.repeat(64) },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '개별 메모 가상 경로에도 허가되지 않은 쿼리 거부',
-        request: { ...normal, requestId: randomUUID(),
-          queryLength: 7, querySha256: 'f'.repeat(64) },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '정상 메모 목록 쿼리 없음 허용',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/notes', route: 'GET /notes', method: 'GET' },
-        decision: 'allow' },
-      { name: '해시 불일치 요청 거부',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/notes', route: 'GET /notes', method: 'GET',
-          queryLength: 0, querySha256: '0'.repeat(64) },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '실제 API 정상 메모 목록 구역 허용',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/api/notes', route: 'GET /api/notes', method: 'GET' },
-        decision: 'allow' },
-      { name: '강사 공지 읽기 구역 정상 허용',
-        request: { ...normal, requestId: randomUUID(),
-          service: 'notices', path: '/notices', route: 'GET /notices', method: 'GET' },
-        decision: 'allow' },
-      { name: '공지 조회도 검증할 수 없는 쿼리 구역 변경 거부',
-        request: { ...normal, requestId: randomUUID(),
-          service: 'notices', path: '/notices', route: 'GET /notices',
-          method: 'GET', queryLength: 8, querySha256: 'f'.repeat(64) },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '일반 학생의 공지 쓰기 구역 거부',
-        request: { ...normal, requestId: randomUUID(),
-          service: 'notices', path: '/notices/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          route: 'PUT /notices/:id', method: 'PUT' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '정확하지 않은 경로 메서드 조합 거부',
-        request: { ...normal, requestId: randomUUID(), method: 'PUT' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '다른 주체의 가상 자료 목록 조회 거부',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/notes', route: 'GET /notes', method: 'GET',
-          subjectId: 'other_learner_fixture' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '다른 주체의 실제 API 목록 조회 판정 거부',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/api/notes', route: 'GET /api/notes', method: 'GET',
-          subjectId: 'other_learner_fixture' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '다른 프로젝트 가상 목록 조회 판정 거부',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/notes', route: 'GET /notes', method: 'GET',
-          projectId: 'other_project' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '다른 등록 기기의 연습 메모 GET 판정 거부',
-        request: { ...normal, requestId: randomUUID(),
-          deviceId: 'bbbbbbbbbbbbbbbb' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '정식 가상 자료 사용자/기기의 목록 읽기 허용',
-        request: { ...normal, requestId: randomUUID(),
-          path: '/notes', route: 'GET /notes', method: 'GET' },
-        decision: 'allow' },
-      { name: '타인 메모 UUID 수정 판정 거부',
-        request: { ...normal, requestId: randomUUID(),
-          method: 'PUT', route: 'PUT /notes/:id',
-          path: '/notes/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          subjectId: 'other_learner_fixture' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '타인 메모 UUID 삭제 판정 거부',
-        request: { ...normal, requestId: randomUUID(),
-          method: 'DELETE', route: 'DELETE /notes/:id',
-          path: '/notes/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          subjectId: 'other_learner_fixture' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '소유권 불명의 UUID 수정도 기본 거부',
-        request: { ...normal, requestId: randomUUID(),
-          method: 'PUT', route: 'PUT /notes/:id',
-          path: '/notes/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '등록된 연습 자원 소유자 수정 허용',
-        request: { ...normal, requestId: randomUUID(),
-          method: 'PUT', route: 'PUT /notes/:id' },
-        decision: 'allow' },
-      { name: '다른 주체의 연습 자원 수정 거부',
-        request: { ...normal, requestId: randomUUID(),
-          method: 'PUT', route: 'PUT /notes/:id',
-          subjectId: 'other_learner_fixture' },
-        decision: 'deny', reasonCode: 'route_not_allowed' },
-      { name: '지역만 변경된 자기 메모 경로 허용',
-        request: { ...normal, requestId: randomUUID(),
-          signals: { source: 'judge_fixture', region: 'foreign',
-            network: 'usual', hour: 14 } }, decision: 'allow' },
-    );
-  }
+    { name: '인증 시간이 초과된 위험 접속은 재확인',
+      request: { ...suspicious, requestId: randomUUID(),
+        stepUp: { verified: true, authAgeSeconds: 901 } },
+      decision: 'step_up' },
+    { name: '지역만 다른 정상 접속 허용',
+      request: changed({ signals: { source: 'judge_fixture', region: 'foreign',
+        network: 'usual', hour: 14 } }), decision: 'allow' },
+    { name: 'A 자기 메모 수정 허용',
+      request: changed({ method: 'PUT', route: 'PUT /notes/:id' }), decision: 'allow' },
+    { name: 'A 자기 메모 삭제 허용',
+      request: changed({ method: 'DELETE', route: 'DELETE /notes/:id' }), decision: 'allow' },
+    { name: 'B의 A 메모 조회 거부',
+      request: changed(b), decision: 'deny', reasonCode: 'route_not_allowed' },
+    { name: 'B의 A 메모 수정 거부',
+      request: changed({ ...b, method: 'PUT', route: 'PUT /notes/:id' }),
+      decision: 'deny' },
+    { name: 'B의 A 메모 삭제 거부',
+      request: changed({ ...b, method: 'DELETE', route: 'DELETE /notes/:id' }),
+      decision: 'deny' },
+    { name: '다른 기기의 A 메모 조회 거부',
+      request: changed({ deviceId: 'b'.repeat(16) }), decision: 'deny' },
+    { name: '다른 반의 A 메모 조회 거부',
+      request: changed({ classId: 'different_class' }), decision: 'deny' },
+    { name: '다른 프로젝트의 A 메모 조회 거부',
+      request: changed({ projectId: 'different_project' }), decision: 'deny' },
+    { name: 'A 본인 메모 목록 허용',
+      request: changed({ path: '/notes', route: 'GET /notes' }), decision: 'allow' },
+    { name: 'A 기존 API 메모 목록 허용',
+      request: changed({ path: '/api/notes', route: 'GET /api/notes' }), decision: 'allow' },
+    { name: 'A 새 메모 추가 허용',
+      request: changed({ method: 'POST', path: '/notes', route: 'POST /notes' }),
+      decision: 'allow' },
+    { name: 'B의 A 메모 목록 거부',
+      request: changed({ ...b, path: '/notes', route: 'GET /notes' }), decision: 'deny' },
+    { name: 'B의 A 메모 추가 구역 거부',
+      request: changed({ ...b, method: 'POST', path: '/notes', route: 'POST /notes' }),
+      decision: 'deny' },
+    { name: '정상 UUID라도 소유권 미확인 조회 거부',
+      request: changed({ path: '/notes/' + validUuid }), decision: 'deny' },
+    { name: '정상 UUID라도 소유권 미확인 수정 거부',
+      request: changed({ method: 'PUT', route: 'PUT /notes/:id',
+        path: '/notes/' + validUuid }), decision: 'deny' },
+    { name: '기능 경로 export가 메모 ID로 통과하지 않음',
+      request: changed({ path: '/notes/export' }), decision: 'deny' },
+    { name: '추가 쿼리로 구역을 전환할 수 없음',
+      request: changed({ queryLength: 7, querySha256: 'f'.repeat(64) }), decision: 'deny' },
+    { name: '쿼리 해시 위조 거부',
+      request: changed({ querySha256: '0'.repeat(64) }), decision: 'deny' },
+    { name: '학생의 강사 공지 읽기 허용',
+      request: changed({ service: 'notices', path: '/notices',
+        route: 'GET /notices' }), decision: 'allow' },
+    { name: '학생의 강사 공지 수정 거부',
+      request: changed(notice), decision: 'deny' },
+    { name: '본문 role=instructor로 강사 권한 위조 불가',
+      request: changed({ ...notice, role: 'instructor' }), decision: 'deny' },
+    { name: '등록 강사 주체/기기 공지 수정 허용',
+      request: changed({ ...notice, subjectId: 'instructor_fixture',
+        deviceId: 'b'.repeat(16) }), decision: 'allow' },
+    { name: '강사 주체지만 다른 기기이면 공지 수정 거부',
+      request: changed({ ...notice, subjectId: 'instructor_fixture' }), decision: 'deny' },
+    { name: '강사 주체/기기도 다른 프로젝트에서는 거부',
+      request: changed({ ...notice, subjectId: 'instructor_fixture',
+        deviceId: 'b'.repeat(16), projectId: 'other_project' }), decision: 'deny' },
+    { name: '강사 기기 등록이 해제되면 공지 수정 거부',
+      request: changed({ ...notice, subjectId: 'instructor_fixture',
+        deviceId: 'b'.repeat(16), deviceRegistered: false }), decision: 'deny' },
+    { name: '미등록 공지 경로 수정 거부',
+      request: changed({ ...notice, subjectId: 'instructor_fixture',
+        deviceId: 'b'.repeat(16), path: '/notices/export' }), decision: 'deny' },
+  ];
   const results = [];
-  for (const item of checks) {
-    const response = await decide(item.request);
-    const valid = validResponse(item.request, response, ruleIds)
-      && response.decision === item.decision
-      && (!item.reasonCode || response.reasonCode === item.reasonCode);
-    results.push({ name: item.name, passed: valid });
+  for (const c of cases) {
+    const verdict = await decide(c.request);
+    results.push({ name: c.name,
+      passed: responseValid(c.request, verdict, ruleIds)
+        && verdict.decision === c.decision
+        && (!c.reasonCode || verdict.reasonCode === c.reasonCode)
+        && (verdict.decision === 'allow' ? verdict.ruleIds.includes('resource_zone') : true),
+    });
   }
   return results;
 }
-
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const { decide, RULE_IDS } = await import('../src/decider.mjs');
     const results = await checkDecider({ decide, ruleIds: RULE_IDS });
-    for (const item of results) process.stdout.write(`${item.passed ? '통과' : '확인 필요'} · ${item.name}\n`);
-    process.stdout.write('이 명령은 가상 요청으로 연습하며 심판 통과 증거가 아닙니다.\n');
-    if (results.some(item => !item.passed)) process.exitCode = 1;
+    for (const item of results) {
+      process.stdout.write((item.passed ? '통과' : '확인 필요') + ' · ' + item.name + '\n');
+    }
+    process.stdout.write('가상 사건 연습이며 ALEPH 심판 점수가 아닙니다.\n');
+    if (results.some(x => !x.passed)) process.exitCode = 1;
   } catch (error) {
-    process.stderr.write(`판정기 연습 첫 오류: ${error.message}\n`);
+    process.stderr.write('판정기 연습 첫 오류: ' + error.message + '\n');
     process.exitCode = 1;
   }
 }
