@@ -48,10 +48,17 @@ const FIXTURE_GRANTS = Object.freeze([
   }),
 ]);
 
-function virtualOwnerMatches(row, request) {
-  return row !== undefined && request.service === 'notes'
-    && ['GET', 'PUT', 'DELETE'].includes(request.method)
-    && request.route === request.method + ' /notes/:id'
+function virtualOwnerMatches(row, request, canonicalPath) {
+  if (!row || request.service !== 'notes'
+      || !['GET', 'PUT', 'DELETE'].includes(request.method)
+      || row.path !== canonicalPath) return false;
+
+  const apiPath = typeof request.path === 'string'
+    && request.path.startsWith('/api/notes/');
+  const expectedRoute = request.method + (apiPath
+    ? ' /api/notes/:id' : ' /notes/:id');
+
+  return request.route === expectedRoute
     && ['classId', 'projectId', 'subjectId', 'deviceId'].every(
       key => row.owner[key] === request[key]);
 }
@@ -64,10 +71,15 @@ function validFixtureGrant(request) {
   }
 
   // 단건 메모는 허용 경로 존재만으로 통과시키지 않습니다.
-  // 별도 가상 자료 등록부에서 현재 요청자의 소유권을 대조한 경우에만 허용합니다.
-  if (request.service === 'notes' && request.route?.endsWith('/notes/:id')) {
-    const row = VIRTUAL_NOTE_ROWS.find(record => record.path === request.path);
-    return virtualOwnerMatches(row, request);
+  // /notes/:id 와 /api/notes/:id 모두 정확한 경로 + 독립 소유자 등록을 대조합니다.
+  if (request.service === 'notes'
+      && ['GET', 'PUT', 'DELETE'].includes(request.method)
+      && typeof request.path === 'string'
+      && (request.path.startsWith('/notes/') || request.path.startsWith('/api/notes/'))) {
+    const canonicalPath = request.path.startsWith('/api/')
+      ? request.path.slice(4) : request.path;
+    const row = VIRTUAL_NOTE_ROWS.find(record => record.path === canonicalPath);
+    return virtualOwnerMatches(row, request, canonicalPath);
   }
   return FIXTURE_GRANTS.some(grant =>
     ['classId', 'projectId', 'subjectId', 'deviceId', 'service',
@@ -89,14 +101,18 @@ function isCompositeRisk(request) {
   return unusualHour && unfamiliarNetwork && highVolume;
 }
 
-async function resourceAllowed(request) {
-  if (validFixtureGrant(request)) return true;
-  // 운영 엔진은 가명 subjectId를 사용하므로 DB owner_id와 직접 비교하면 안 됩니다.
-  // 서버 비밀 설정과 운영자 등록부가 없을 때는 기본 거부합니다.
+export async function resourceAllowed(request, trustedRuntimeCheck) {
+  // 심판 fixture는 로컬의 명시적 등록표만 사용합니다.
+  // fixture 소유권이 맞지 않으면 실제 DB 바인딩으로 우회하지 않고 즉시 거부합니다.
+  if (request?.signals?.source === 'judge_fixture') {
+    return validFixtureGrant(request);
+  }
+
+  // 실제 운영 요청만 서버 전용 가명 주체 -> DB 사용자 바인딩을 확인합니다.
   try {
-    const { runtimeTrustedResourceAllowed } =
-      await import('./engine-resource-access.mjs');
-    return await runtimeTrustedResourceAllowed(request);
+    const check = trustedRuntimeCheck ?? (await import('./engine-resource-access.mjs'))
+      .runtimeTrustedResourceAllowed;
+    return await check(request);
   } catch { return false; }
 }
 
