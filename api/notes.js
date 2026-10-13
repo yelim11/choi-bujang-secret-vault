@@ -59,6 +59,7 @@ async function ownedNote(supabase, id, userId) {
     .from('notes')
     .select('id,title,content,owner_id')
     .eq('id', id)
+    .eq('owner_id', userId)
     .maybeSingle();
 
   if (error) return { error };
