@@ -15,6 +15,14 @@
     {
       "source": "/api/restore/notes/:id",
       "destination": "/api/restore?id=:id"
+    },
+    {
+      "source": "/api/checks",
+      "destination": "/api/ops"
+    },
+    {
+      "source": "/api/war-room",
+      "destination": "/api/ops"
     }
   ],
   "headers": [
