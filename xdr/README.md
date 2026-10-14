@@ -41,3 +41,19 @@ npm run xdr:run -- web-injection
 ```
 
 시험 결과: `block 8 / alert 9 / record 9`, 정상 이벤트 오차단 0건.
+
+## known-cve
+
+`xdr/fixtures/known-cve.json`의 24개 가상 Wazuh 경보를 CVE-2021-44228 및 MITRE ATT&CK T1190 근거로 분류합니다.
+
+- 완전한 JNDI 원격 조회 구문: `block`
+- 완전한 악용 구문은 없지만 T1190 중간 경보: `alert`
+- 공격 근거가 없는 낮은 수준 정상 이벤트: `record`
+
+`decide.mjs`는 다른 파일이나 패키지를 import하지 않는 standalone 판단기입니다. `respond.mjs`는 고확신도 block만 `deny-rules.json`으로 연결하고 기존 `src/decider.mjs`는 수정하지 않습니다.
+
+```bash
+npm run xdr:run -- known-cve
+```
+  
+시험 fixture 24건 결과: `block 8 / alert 8 / record 8`, 정상 이벤트 block 0건입니다.

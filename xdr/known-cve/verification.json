@@ -1,0 +1,8 @@
+{
+  "schema": "aleph.xdr.verification.v1",
+  "moduleKey": "known-cve",
+  "alertsRead": 24,
+  "blockCandidates": 7,
+  "normalEventsBlocked": 0,
+  "baseDeciderModified": false
+}

@@ -1,0 +1,31 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "known-cve",
+  "thresholds": {
+    "block": 0.85,
+    "alert": 0.5
+  },
+  "ruleTtlMinutes": 15,
+  "patterns": [
+    {
+      "name": "log4shell-header-jndi",
+      "condition": "요청 머리글에 ${jndi:<원격 프로토콜>://...} 형태의 완전한 원격 조회 구문이 있다.",
+      "evidence": "CVE-2021-44228 및 MITRE ATT&CK T1190: 외부 입력이 Log4j JNDI 원격 조회로 이어지는 명확한 악용 형태."
+    },
+    {
+      "name": "log4shell-argument-jndi",
+      "condition": "URL·검색어·요청 인자에 ${jndi:<원격 프로토콜>://...} 형태의 완전한 원격 조회 구문이 있다.",
+      "evidence": "CVE-2021-44228 및 MITRE ATT&CK T1190: 요청 인자에 삽입된 JNDI 원격 조회는 공개 애플리케이션 취약점 악용 형태."
+    },
+    {
+      "name": "known-cve-probe-trace",
+      "condition": "완전한 JNDI 구문은 없지만 T1190 경보 수준 5 이상에서 CVE·JNDI·취약점 점검·라이브러리 흔적이 관측된다.",
+      "evidence": "MITRE ATT&CK T1190: 알려진 취약점 탐색·점검 흔적은 악용 성공과 구분해 중간 신뢰 알림으로 다룬다."
+    },
+    {
+      "name": "normal-event",
+      "condition": "T1190 악용 구문이나 알려진 취약점 점검 흔적이 없는 낮은 수준 정상 이벤트다.",
+      "evidence": "MITRE ATT&CK T1190 악용 증거가 없는 정상 접속은 차단하지 않고 기록만 남긴다."
+    }
+  ]
+}

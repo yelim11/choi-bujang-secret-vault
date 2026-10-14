@@ -1,0 +1,85 @@
+{
+  "schema": "aleph.xdr.ztna-deny-rules.v1",
+  "moduleKey": "known-cve",
+  "note": "고확신도 CVE-2021-44228 차단 후보만 연결하며 기존 판정기 규칙은 수정하지 않습니다.",
+  "rules": [
+    {
+      "ruleId": "xdr.known-cve.deny-203-0-113-10",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.10"
+      },
+      "expiresAt": "2026-09-27T00:29:18.000Z",
+      "evidenceAlertIds": [
+        "kc-01",
+        "kc-02"
+      ]
+    },
+    {
+      "ruleId": "xdr.known-cve.deny-198-51-100-16",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "198.51.100.16"
+      },
+      "expiresAt": "2026-09-27T00:32:06.000Z",
+      "evidenceAlertIds": [
+        "kc-03"
+      ]
+    },
+    {
+      "ruleId": "xdr.known-cve.deny-192-0-2-16",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "192.0.2.16"
+      },
+      "expiresAt": "2026-09-27T01:19:22.000Z",
+      "evidenceAlertIds": [
+        "kc-04"
+      ]
+    },
+    {
+      "ruleId": "xdr.known-cve.deny-203-0-113-24",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.24"
+      },
+      "expiresAt": "2026-09-27T01:36:09.000Z",
+      "evidenceAlertIds": [
+        "kc-05"
+      ]
+    },
+    {
+      "ruleId": "xdr.known-cve.deny-198-51-100-24",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "198.51.100.24"
+      },
+      "expiresAt": "2026-09-27T02:23:41.000Z",
+      "evidenceAlertIds": [
+        "kc-06"
+      ]
+    },
+    {
+      "ruleId": "xdr.known-cve.deny-192-0-2-24",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "192.0.2.24"
+      },
+      "expiresAt": "2026-09-27T04:21:15.000Z",
+      "evidenceAlertIds": [
+        "kc-07"
+      ]
+    },
+    {
+      "ruleId": "xdr.known-cve.deny-203-0-113-31",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.31"
+      },
+      "expiresAt": "2026-09-27T05:34:03.000Z",
+      "evidenceAlertIds": [
+        "kc-08"
+      ]
+    }
+  ]
+}
