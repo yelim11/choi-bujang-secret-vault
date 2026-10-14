@@ -113,9 +113,19 @@ export async function runAttackChecks(config) {
       Array.isArray(routes) && routes.some(entry => entry?.service === service
         && entry.method === method && entry.pathPattern === pathPattern
         && entry.zone === zone);
+    const hasRoute = (service, method, pathPattern) =>
+      Array.isArray(routes) && routes.some(entry => entry?.service === service
+        && entry.method === method && entry.pathPattern === pathPattern);
     const zonesCorrect = hasZone('notes', 'GET', '/api/notes/:id', 'my-notes')
+      && hasZone('notes', 'PUT', '/api/notes/:id', 'my-notes')
+      && hasZone('notes', 'DELETE', '/api/notes/:id', 'my-notes')
       && hasZone('notices', 'GET', '/api/notices', 'class-notices')
-      && hasZone('notices', 'PUT', '/api/notices/:id', 'instructor-materials');
+      && hasZone('notices', 'GET', '/api/notices/:id', 'class-notices')
+      && !hasRoute('notes', 'GET', '/api/notes')
+      && !hasRoute('notes', 'GET', '/api/my/notes')
+      && !hasRoute('notes', 'POST', '/api/notes')
+      && !['POST', 'PUT', 'PATCH', 'DELETE'].some(method =>
+        hasRoute('notices', method, method === 'POST' ? '/api/notices' : '/api/notices/:id'));
     const [noticesList, noticesWrite] = await Promise.all([
       fetch(new URL('/api/notices', app), {
         redirect: 'error', signal: AbortSignal.timeout(10000),
@@ -132,9 +142,9 @@ export async function runAttackChecks(config) {
     results.push(
       {
         attackId: 'deployed_resource_zones_verified',
-        expected: '실제 배포 구역에 notes 자기 메모와 notices 강사 공지 읽기·쓰기 구역이 분리됨',
+        expected: '실제 배포 구역은 메모 단건만 허용하고 반 공지는 GET만 허용하며 쓰기 구역은 없음',
         observed: zonesCorrect
-          ? '실제 /aleph.json에서 메모/공지/강사 구역을 분리해서 확인함'
+          ? '실제 /aleph.json에서 메모 단건과 공지 읽기만 허용된 것을 확인함'
           : '배포 구역 정의 검증 실패',
       },
       {

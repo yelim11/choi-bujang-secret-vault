@@ -47,7 +47,14 @@ export async function handleNoticesRequest(request, response, current) {
   }
   const target = parseResourceTarget(request, 'notices');
   if (target.invalid) return response.status(400).json({ error: 'INVALID_RESOURCE_PATH' });
-  if (!routeAllowed(config, target, request.method)) {
+
+  // 판정기는 반 공지 GET만 허용합니다. 공지 쓰기는 판정기 경로가 아니라
+  // 서버가 검증한 강사 권한으로 처리하는 관리 동작으로 분리합니다.
+  const deciderRead = request.method === 'GET'
+    && routeAllowed(config, target, request.method);
+  const serverManagedWrite = (request.method === 'POST' && target.id === null)
+    || (['PUT', 'DELETE'].includes(request.method) && target.id !== null);
+  if (!deciderRead && !serverManagedWrite) {
     return response.status(403).json({ error: 'RESOURCE_ZONE_DENIED' });
   }
 

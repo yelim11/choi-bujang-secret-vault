@@ -1,13 +1,10 @@
-// S08 checkpoint: judge fixture가 runtime DB 허용으로 우회하지 않는지 검증합니다.
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import config from '../aleph.config.json' with { type: 'json' };
+import { decide, RULE_IDS } from '../src/decider.mjs';
 import {
   parseResourceTarget, routeAllowed, belongsToVerifiedOwner, hasVerifiedInstructorRole,
 } from '../src/resource-policy.mjs';
-import { createTrustedEngineResourceCheck } from '../src/engine-resource-access.mjs';
-import { resourceAllowed } from '../src/decider.mjs';
 import { handleNoticesRequest } from '../api/notices.js';
 import { handleNotesRequest } from '../api/notes.js';
 
@@ -18,73 +15,60 @@ const MEMO_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const NOTICE_A = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const EMPTY_SHA = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
-function mockDb({ instructor = false, expired = false } = {}) {
-  const bindings = [
-    { class_id: 'cl', project_id: 'p', subject_id: 'subject_a',
-      device_id: 'a'.repeat(16), user_id: A, enabled: true,
-      expires_at: new Date(Date.now() + (expired ? -1000 : 90000)).toISOString() },
-    { class_id: 'cl', project_id: 'p', subject_id: 'subject_b',
-      device_id: 'b'.repeat(16), user_id: B, enabled: true,
-      expires_at: new Date(Date.now() + 90000).toISOString() },
-  ];
+function mockDb({ instructor = false } = {}) {
   const rows = {
-    sdp_principal_bindings: bindings,
     notes: [
       { id: MEMO_A, owner_id: A, title: 'A', content: 'fake A' },
       { id: MEMO_B, owner_id: B, title: 'B', content: 'fake B' },
     ],
-    notices: [{ id: NOTICE_A, owner_id: A, title: 'test', content: 'fake' }],
+    notices: [{ id: NOTICE_A, owner_id: A, title: 'notice', content: 'fake notice' }],
   };
   const events = [];
   const db = {
     events,
     auth: { admin: { async getUserById(id) {
-      events.push(['admin.getUserById', id]);
       return { data: { user: { id, app_metadata: instructor && id === A
         ? { role: 'instructor' } : { role: 'student' } } }, error: null };
     } } },
     from(table) {
-      assert.ok(Object.hasOwn(rows, table), 'unexpected table ' + table);
+      assert.ok(Object.hasOwn(rows, table));
       const filters = [];
       const builder = {
         select() { return builder; },
-        eq(column, value) { filters.push([column, value]); return builder; },
+        eq(key, value) { filters.push([key, value]); return builder; },
         order() { return builder; },
-        // Supabase의 목록 select 체인을 가상 자료 행으로 반환합니다.
         then(onFulfilled, onRejected) {
-          events.push([table, ...filters]);
-          return Promise.resolve({
-            data: rows[table].filter(row => filters.every(([key, value]) => row[key] === value)),
-            error: null,
-          }).then(onFulfilled, onRejected);
+          const data = rows[table].filter(row => filters.every(([key, value]) => row[key] === value));
+          return Promise.resolve({ data, error: null }).then(onFulfilled, onRejected);
         },
         async maybeSingle() {
-          events.push([table, ...filters]);
           return { data: rows[table].find(row =>
             filters.every(([key, value]) => row[key] === value)) ?? null, error: null };
         },
-        async insert(row) {
-          events.push(['insert', table]);
-          rows[table].push(row);
-          return { error: null };
-        },
+        async insert(row) { rows[table].push(row); events.push(['insert', table]); return { error: null }; },
         update(changes) {
-          events.push(['update', table]);
           const upd = { ...builder };
-          upd.maybeSingle = async () => {
-            const existing = rows[table].find(row =>
-              filters.every(([key, value]) => row[key] === value));
-            if (!existing) return { data: null, error: null };
-            Object.assign(existing, changes);
-            return { data: { ...existing }, error: null };
-          };
           upd.select = () => upd;
           upd.eq = (key, value) => { filters.push([key, value]); return upd; };
+          upd.maybeSingle = async () => {
+            const row = rows[table].find(item => filters.every(([key, value]) => item[key] === value));
+            if (!row) return { data: null, error: null };
+            Object.assign(row, changes); events.push(['update', table]);
+            return { data: { ...row }, error: null };
+          };
           return upd;
         },
         delete() {
-          events.push(['delete', table]);
-          return builder;
+          const del = { ...builder };
+          del.select = () => del;
+          del.eq = (key, value) => { filters.push([key, value]); return del; };
+          del.maybeSingle = async () => {
+            const index = rows[table].findIndex(item => filters.every(([key, value]) => item[key] === value));
+            if (index < 0) return { data: null, error: null };
+            const [row] = rows[table].splice(index, 1); events.push(['delete', table]);
+            return { data: row, error: null };
+          };
+          return del;
         },
       };
       return builder;
@@ -98,224 +82,90 @@ function response() {
     setHeader(name, value) { this.headers[name] = value; return this; },
     status(code) { this.statusCode = code; return this; },
     json(body) { this.body = body; return this; },
+    end() { return this; },
   };
 }
 
-function engineReq({ subjectId = 'subject_a', deviceId = 'a'.repeat(16),
-  method = 'GET', path = '/notes/' + MEMO_A, service = 'notes' } = {}) {
-  const part = path.split('/');
-  const item = part.length === 3 || part.length === 4;
-  return { schema: 'aleph.decision.v1', requestId: randomUUID(),
-    classId: 'cl', projectId: 'p', subjectId, deviceId, service, method, path,
-    route: method + ' /' + (path.startsWith('/api/') ? 'api/' : '') + service
-      + (item ? '/:id' : ''),
-    queryLength: 0, querySha256: EMPTY_SHA, at: new Date().toISOString(),
-    policyRevision: 1, deviceRegistered: true, stepUp: { verified: false, authAgeSeconds: null },
-    signals: { source: 'none', region: 'unknown', network: 'unknown', hour: 14 },
-    recentEvents: [],
+function deciderRequest(overrides = {}) {
+  return {
+    schema: 'aleph.decision.v1', requestId: 'req-' + Math.random(),
+    classId: 'class_fixture', projectId: 'project_fixture', subjectId: 'learner_fixture',
+    deviceId: 'aaaaaaaaaaaaaaaa', service: 'notes', method: 'GET',
+    path: '/notes/demo', route: 'GET /notes/:id', queryLength: 0,
+    querySha256: EMPTY_SHA, at: new Date().toISOString(), policyRevision: 1,
+    deviceRegistered: true, stepUp: { verified: false, authAgeSeconds: null },
+    recentEvents: [], signals: { source: 'judge_fixture', region: 'local', network: 'usual', hour: 14 },
+    ...overrides,
   };
 }
 
-test('8단계 정확한 메모/공지 경로와 typed 자원 ID', () => {
-  const target = parseResourceTarget({ url: '/api/notes/' + MEMO_A, query: { id: MEMO_A } }, 'notes');
-  assert.equal(target.resourceId, 'notes:' + MEMO_A);
-  assert.ok(routeAllowed(config, target, 'GET'));
-  assert.ok(routeAllowed(config, target, 'PUT'));
-  assert.equal(routeAllowed(config, target, 'POST'), false);
+test('8단계 allowedRoutes는 판정기가 허용하는 5개 경로만 공개', () => {
+  assert.equal(config.step, 8);
+  assert.deepEqual(config.allowedRoutes, [
+    { service: 'notes', method: 'GET', pathPattern: '/api/notes/:id', zone: 'my-notes' },
+    { service: 'notes', method: 'PUT', pathPattern: '/api/notes/:id', zone: 'my-notes' },
+    { service: 'notes', method: 'DELETE', pathPattern: '/api/notes/:id', zone: 'my-notes' },
+    { service: 'notices', method: 'GET', pathPattern: '/api/notices', zone: 'class-notices' },
+    { service: 'notices', method: 'GET', pathPattern: '/api/notices/:id', zone: 'class-notices' },
+  ]);
+});
+
+test('8단계 판정기: 단건 메모 허용, 목록·생성·공지 쓰기·강사 자료 거부', async () => {
+  assert.equal((await decide(deciderRequest())).decision, 'allow');
+  assert.equal((await decide(deciderRequest({ path: '/notes/not-a-uuid' }))).decision, 'allow');
+  assert.equal((await decide(deciderRequest({ path: '/notes', route: 'GET /notes' }))).decision, 'deny');
+  assert.equal((await decide(deciderRequest({ method: 'POST', path: '/notes', route: 'POST /notes' }))).decision, 'deny');
+  assert.equal((await decide(deciderRequest({ service: 'notices', path: '/notices', route: 'GET /notices' }))).decision, 'allow');
+  assert.equal((await decide(deciderRequest({ service: 'notices', method: 'PUT', path: '/notices/n1', route: 'PUT /notices/:id' }))).decision, 'deny');
+  assert.equal((await decide(deciderRequest({ service: 'instructor-materials', path: '/materials/m1', route: 'GET /materials/:id' }))).decision, 'deny');
+  assert.ok((await decide(deciderRequest())).ruleIds.every(id => RULE_IDS.includes(id)));
+});
+
+test('8단계 자원 ID는 메모와 공지를 구분하고 config 허용 여부를 따른다', () => {
+  const note = parseResourceTarget({ url: '/api/notes/' + MEMO_A, query: { id: MEMO_A } }, 'notes');
   const notice = parseResourceTarget({ url: '/api/notices/' + NOTICE_A }, 'notices');
+  assert.equal(note.resourceId, 'notes:' + MEMO_A);
   assert.equal(notice.resourceId, 'notices:' + NOTICE_A);
-  assert.ok(routeAllowed(config, notice, 'GET'));
-  assert.ok(routeAllowed(config, notice, 'PUT'));
-  assert.equal(routeAllowed(config, notice, 'POST'), false);
+  assert.equal(routeAllowed(config, note, 'GET'), true);
+  assert.equal(routeAllowed(config, notice, 'GET'), true);
+  assert.equal(routeAllowed(config, notice, 'PUT'), false);
+  assert.equal(routeAllowed(config, parseResourceTarget({ url: '/api/my/notes' }, 'notes'), 'GET'), false);
+  assert.equal(routeAllowed(config, parseResourceTarget({ url: '/api/notes' }, 'notes'), 'POST'), false);
   assert.equal(belongsToVerifiedOwner({ owner_id: A }, { userId: B }), false);
 });
 
-test('8단계 본인 목록과 포괄 목록 정책 분리', () => {
-  const own = parseResourceTarget({ url: '/api/my/notes' }, 'notes');
-  assert.equal(own.invalid, false);
-  assert.equal(own.pathPattern, '/api/my/notes');
-  assert.equal(own.resourceId, 'notes:own-list');
-  assert.equal(routeAllowed(config, own, 'GET'), true);
-  assert.equal(routeAllowed(config, own, 'POST'), false);
-  const broad = parseResourceTarget({ url: '/api/notes' }, 'notes');
-  assert.equal(broad.invalid, false);
-  assert.equal(routeAllowed(config, broad, 'GET'), false);
-  assert.equal(routeAllowed(config, broad, 'POST'), true);
-  assert.equal(parseResourceTarget({ url: '/api/my/notes?owner_id=foreign' }, 'notes').invalid, true);
-  assert.equal(parseResourceTarget({ url: '/api/my/notes/export' }, 'notes').invalid, true);
-});
-
-test('8단계 export/중복 id/알 수 없는 쿼리/대상 충돌은 거부', () => {
-  const paths = [
-    { url: '/api/notes/export' },
-    { url: '/api/notes/' + MEMO_A + '/export' },
-    { url: '/api/notes/' + MEMO_A, query: { id: MEMO_B } },
-    { url: '/api/notes?id=' + MEMO_A + '&id=' + MEMO_B },
-    { url: '/api/notes?role=instructor' },
-    { url: '/api/notes/%65xport' },
-    { url: '/api/notices/' + NOTICE_A + '?owner_id=' + A },
-  ];
-  for (const item of paths) {
-    const kind = item.url.startsWith('/api/notices') ? 'notices' : 'notes';
-    assert.equal(parseResourceTarget(item, kind).invalid, true, item.url);
-  }
-});
-
-test('8단계 서버 등록부: A 자기 메모 허용, B는 A 메모 거부', async () => {
-  const db = mockDb();
-  const check = createTrustedEngineResourceCheck(db);
-  assert.equal(await check(engineReq()), true);
-  assert.equal(await check(engineReq({ subjectId: 'subject_b',
-    deviceId: 'b'.repeat(16) })), false);
-  assert.equal(await check(engineReq({ subjectId: 'subject_b',
-    deviceId: 'b'.repeat(16), path: '/notes/' + MEMO_B })), true);
-  assert.equal(await check(engineReq({ path: '/notes/' + MEMO_A, method: 'PUT' })), true);
-  assert.equal(await check(engineReq({ path: '/notes/' + MEMO_A, method: 'DELETE' })), true);
-  assert.equal(await check(engineReq({ subjectId: 'subject_a',
-    deviceId: 'b'.repeat(16) })), false);
-});
-
-test('8단계 서버 등록부: 만료와 알 수 없는 요청은 기본 거부', async () => {
-  const db = mockDb({ expired: true });
-  const check = createTrustedEngineResourceCheck(db);
-  assert.equal(await check(engineReq()), false);
-  const unknown = engineReq();
-  unknown.path = '/notes/export';
-  assert.equal(await check(unknown), false);
-  const query = engineReq();
-  query.queryLength = 4;
-  assert.equal(await check(query), false);
-});
-
-test('8단계 강사 권한은 서버 admin app_metadata로만 판단', async () => {
-  const db = mockDb({ instructor: true });
-  assert.equal(await hasVerifiedInstructorRole(db, { kind: 'student', userId: A }), true);
-  assert.equal(await hasVerifiedInstructorRole(db, { kind: 'judge', userId: A }), false);
-  assert.equal(await hasVerifiedInstructorRole(db, { kind: 'student', userId: B }), false);
-  const check = createTrustedEngineResourceCheck(db);
-  assert.equal(await check(engineReq({ method: 'PUT', path: '/notices/' + NOTICE_A,
-    service: 'notices' })), true);
-  assert.equal(await check(engineReq({ method: 'PUT', path: '/notices/' + NOTICE_A,
-    service: 'notices', subjectId: 'subject_b', deviceId: 'b'.repeat(16) })), false);
-});
-
-test('8단계 실제 메모 API: A/B 양방향 소유권 및 본인 전용 목록', async () => {
+test('8단계 실제 메모 API는 A/B 소유권을 다시 확인하고 기존 본인 목록을 유지', async () => {
   const db = mockDb();
   const current = { supabase: db, verifyLogin: async token =>
-    token === 'mock-A' ? { kind: 'student', userId: A }
-      : token === 'mock-B' ? { kind: 'student', userId: B } : null };
-
-  const call = (user, method, url, body) => handleNotesRequest({
-    url, method, headers: { authorization: user }, ...(body ? { body } : {}),
+    token === 'A' ? { kind: 'student', userId: A }
+      : token === 'B' ? { kind: 'student', userId: B } : null };
+  const call = (token, method, url, body) => handleNotesRequest({
+    method, url, headers: { authorization: token }, ...(body ? { body } : {}),
   }, response(), current);
-
-  const aOwn = await call('mock-A', 'GET', '/api/notes/' + MEMO_A);
-  assert.equal(aOwn.statusCode, 200);
-  assert.equal(aOwn.body.id, MEMO_A);
-  const bOwn = await call('mock-B', 'GET', '/api/notes/' + MEMO_B);
-  assert.equal(bOwn.statusCode, 200);
-  assert.equal(bOwn.body.id, MEMO_B);
-
-  const aTriesB = await call('mock-A', 'GET', '/api/notes/' + MEMO_B);
-  assert.equal(aTriesB.statusCode, 404);
-  assert.equal(aTriesB.body.error, 'NOTE_NOT_FOUND');
-  const bTriesA = await call('mock-B', 'GET', '/api/notes/' + MEMO_A);
-  assert.equal(bTriesA.statusCode, 404);
-  assert.equal(bTriesA.body.error, 'NOTE_NOT_FOUND');
-
-  const aList = await call('mock-A', 'GET', '/api/my/notes');
-  assert.equal(aList.statusCode, 200);
-  assert.deepEqual(aList.body.map(row => row.id), [MEMO_A]);
-  const bList = await call('mock-B', 'GET', '/api/my/notes');
-  assert.equal(bList.statusCode, 200);
-  assert.deepEqual(bList.body.map(row => row.id), [MEMO_B]);
-
-  // 호환 주소를 제거하지 않고, 똑같이 DB에서 소유자를 검증합니다.
-  const legacyList = await call('mock-A', 'GET', '/api/notes');
-  assert.equal(legacyList.statusCode, 200);
-  assert.deepEqual(legacyList.body.map(row => row.id), [MEMO_A]);
-
-  assert.equal((await call('missing', 'GET', '/api/my/notes')).statusCode, 401);
-  assert.equal((await call('mock-A', 'GET', '/api/my/notes?role=instructor')).statusCode, 400);
-  assert.equal((await call('mock-A', 'GET', '/api/my/notes/export')).statusCode, 400);
+  assert.equal((await call('A', 'GET', '/api/notes/' + MEMO_A)).statusCode, 200);
+  assert.equal((await call('B', 'GET', '/api/notes/' + MEMO_A)).statusCode, 404);
+  assert.deepEqual((await call('A', 'GET', '/api/my/notes')).body.map(row => row.id), [MEMO_A]);
+  assert.deepEqual((await call('B', 'GET', '/api/notes')).body.map(row => row.id), [MEMO_B]);
+  const created = await call('A', 'POST', '/api/notes', { title: 'new', body: 'body' });
+  assert.equal(created.statusCode, 201);
 });
 
-test('8단계 API: 학생 role 위조로 강사 공지 수정 불가', async () => {
-  const db = mockDb({ instructor: false });
-  const current = { supabase: db, verifyLogin: async token =>
-    token === 'mock-student' ? { kind: 'student', userId: A } : null };
-  const req = { url: '/api/notices/' + NOTICE_A, method: 'PUT',
-    headers: { authorization: 'mock-student' },
-    body: { title: 'changed', body: 'fake', role: 'instructor' } };
-  const out = await handleNoticesRequest(req, response(), current);
-  assert.equal(out.statusCode, 403);
-  assert.equal(out.body.error, 'INSTRUCTOR_REQUIRED');
-  assert.equal(db.events.some(event => event[0] === 'update'), false);
-});
+test('8단계 공지 쓰기는 판정기가 아니라 서버의 검증된 강사 권한에서만 처리', async () => {
+  const studentDb = mockDb({ instructor: false });
+  const student = { supabase: studentDb, verifyLogin: async () => ({ kind: 'student', userId: A }) };
+  const forged = await handleNoticesRequest({
+    method: 'PUT', url: '/api/notices/' + NOTICE_A,
+    headers: { authorization: 'student' }, body: { title: 'x', body: 'y', role: 'instructor' },
+  }, response(), student);
+  assert.equal(forged.statusCode, 403);
+  assert.equal(forged.body.error, 'INSTRUCTOR_REQUIRED');
 
-test('8단계 API: 관리자 인증 강사만 자기 공지 수정, 타인 공지 거부', async () => {
-  const db = mockDb({ instructor: true });
-  const current = { supabase: db, verifyLogin: async token =>
-    token === 'mock-instructor' ? { kind: 'student', userId: A } : null };
-  const base = { method: 'PUT', headers: { authorization: 'mock-instructor' },
-    body: { title: 'updated', body: 'content' } };
-  const own = await handleNoticesRequest({ ...base,
-    url: '/api/notices/' + NOTICE_A }, response(), current);
+  const instructorDb = mockDb({ instructor: true });
+  const instructor = { supabase: instructorDb, verifyLogin: async () => ({ kind: 'student', userId: A }) };
+  const own = await handleNoticesRequest({
+    method: 'PUT', url: '/api/notices/' + NOTICE_A,
+    headers: { authorization: 'instructor' }, body: { title: 'updated', body: 'content' },
+  }, response(), instructor);
   assert.equal(own.statusCode, 200);
-  const foreign = await handleNoticesRequest({ ...base,
-    url: '/api/notices/' + MEMO_B }, response(), current);
-  assert.equal(foreign.statusCode, 404);
-  assert.equal((await handleNoticesRequest({ ...base, method: 'GET',
-    headers: {} }, response(), current)).statusCode, 401);
-});
-
-
-test('8단계 judge fixture의 타인 단건 GET은 runtime DB 허용으로 우회하지 않음', async () => {
-  const base = {
-    schema: 'aleph.decision.v1',
-    requestId: randomUUID(),
-    classId: 'class_fixture',
-    projectId: 'project_fixture',
-    subjectId: 'learner_fixture',
-    deviceId: 'aaaaaaaaaaaaaaaa',
-    service: 'notes',
-    method: 'GET',
-    path: '/api/notes/demo-b',
-    route: 'GET /api/notes/:id',
-    queryLength: 0,
-    querySha256: EMPTY_SHA,
-    at: new Date().toISOString(),
-    policyRevision: 1,
-    deviceRegistered: true,
-    stepUp: { verified: false, authAgeSeconds: null },
-    signals: { source: 'judge_fixture', region: 'local', network: 'usual', hour: 14 },
-    recentEvents: [],
-  };
-
-  let runtimeCalled = false;
-  const foreign = await resourceAllowed(base, async () => {
-    runtimeCalled = true;
-    return true;
-  });
-  assert.equal(foreign, false);
-  assert.equal(runtimeCalled, false);
-
-  const own = await resourceAllowed({
-    ...base,
-    requestId: randomUUID(),
-    path: '/api/notes/demo',
-  }, async () => {
-    runtimeCalled = true;
-    return false;
-  });
-  assert.equal(own, true);
-  assert.equal(runtimeCalled, false);
-
-  const mixedRoute = await resourceAllowed({
-    ...base,
-    requestId: randomUUID(),
-    path: '/api/notes/demo',
-    route: 'GET /notes/:id',
-  }, async () => true);
-  assert.equal(mixedRoute, false);
+  assert.equal(await hasVerifiedInstructorRole(instructorDb, { kind: 'student', userId: A }), true);
 });

@@ -79,12 +79,17 @@ export async function handleNotesRequest(request, response, current) {
   if (target.invalid) return response.status(400).json({ error: 'INVALID_RESOURCE_PATH' });
   // 기존 GET /api/notes 는 본인 소유 조건이 적용되는 호환 경로로만 보존합니다.
   // SDP 선언에서 허용한 본인 전용 목록은 GET /api/my/notes 입니다.
-  const legacyOwnList = request.method === 'GET'
-    && target.pathPattern === '/api/notes' && target.id === null
-    && typeof request.url === 'string'
+  const noQuery = typeof request.url === 'string'
     && new URL(request.url, 'https://placeholder.invalid').search === ''
     && Object.keys(request.query ?? {}).length === 0;
-  if (!routeAllowed(config, target, request.method) && !legacyOwnList) {
+  // 판정기의 허용 목록에는 단건 자료만 둡니다. 기존 화면의 본인 목록/새 메모 작성은
+  // 로그인 검증 뒤 서버가 owner_id를 강제하는 호환 경로로만 유지합니다.
+  const serverOwnedCompatibility = target.id === null && noQuery && (
+    (request.method === 'GET'
+      && ['/api/notes', '/api/my/notes'].includes(target.pathPattern))
+    || (request.method === 'POST' && target.pathPattern === '/api/notes')
+  );
+  if (!routeAllowed(config, target, request.method) && !serverOwnedCompatibility) {
     return response.status(403).json({ error: 'RESOURCE_ZONE_DENIED' });
   }
   const id = target.id;

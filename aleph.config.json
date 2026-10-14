@@ -12,18 +12,6 @@
     {
       "service": "notes",
       "method": "GET",
-      "pathPattern": "/api/my/notes",
-      "zone": "my-notes"
-    },
-    {
-      "service": "notes",
-      "method": "POST",
-      "pathPattern": "/api/notes",
-      "zone": "my-notes"
-    },
-    {
-      "service": "notes",
-      "method": "GET",
       "pathPattern": "/api/notes/:id",
       "zone": "my-notes"
     },
@@ -40,12 +28,6 @@
       "zone": "my-notes"
     },
     {
-      "service": "auth",
-      "method": "POST",
-      "pathPattern": "/api/auth",
-      "zone": "authentication"
-    },
-    {
       "service": "notices",
       "method": "GET",
       "pathPattern": "/api/notices",
@@ -56,24 +38,6 @@
       "method": "GET",
       "pathPattern": "/api/notices/:id",
       "zone": "class-notices"
-    },
-    {
-      "service": "notices",
-      "method": "POST",
-      "pathPattern": "/api/notices",
-      "zone": "instructor-materials"
-    },
-    {
-      "service": "notices",
-      "method": "PUT",
-      "pathPattern": "/api/notices/:id",
-      "zone": "instructor-materials"
-    },
-    {
-      "service": "notices",
-      "method": "DELETE",
-      "pathPattern": "/api/notices/:id",
-      "zone": "instructor-materials"
     }
   ],
   "originalApiUrl": "https://naukmhaknwezkbxvkylc.supabase.co/rest/v1/notes",

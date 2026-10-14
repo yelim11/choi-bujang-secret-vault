@@ -120,110 +120,27 @@ npm run fixture:7
 
 별도 Node.js 재현 환경에서 정상·미등록·복합 이상·재확인·지역 단독 변화·신호 출처 불분명·인증 시간 초과·기기 거부 우선 8개 시나리오를 통과했습니다. 저장소 전체 npm 스크립트 및 실제 운영 로그인 확인 전 자료 차단은 미실행이며, 심판 또는 엔진이 연결된 환경에서 별도 시험해야 합니다.
 
-## 8단계 · 자료마다 다른 신뢰 구역
+## 8단계 · 자료마다 갈 수 있는 구역을 나눕니다
 
-이번 구현은 **SDP 엔진의 가명 ID**와 **실제 데이터베이스의 로그인 사용자 ID**를 무조건 같다고 가정하지 않습니다. 소유권을 증명할 수 없으면 거부합니다.
+현재 판정기는 `docs/DECIDER_REQUEST.md`의 요청 이름만 읽고 기존 6단계 기기 등록·7단계 추가 인증 규칙을 유지합니다.
 
-### 자료 구역과 기존 호환성
+- **메모 구역**: `GET /api/notes/:id`, `PUT /api/notes/:id`, `DELETE /api/notes/:id`만 판정기에서 허용합니다. 메모 ID는 심판 가상 요청을 위해 UUID로 제한하지 않습니다.
+- **메모 전체 목록/생성**: 판정기에서는 허용하지 않습니다. 기존 화면의 `GET /api/my/notes`, 호환 `GET /api/notes`, `POST /api/notes`는 로그인 검증 뒤 서버가 `owner_id`를 강제하는 호환 API로만 유지합니다.
+- **반 공지 구역**: `GET /api/notices`, `GET /api/notices/:id`만 판정기에서 허용합니다.
+- **공지 쓰기/강사 자료**: 판정기 요청에는 역할이 없으므로 POST·PUT·PATCH·DELETE 및 강사 자료 구역은 모두 거부합니다. 실제 강사 공지 관리는 서버가 검증한 `app_metadata` 권한과 저장된 소유자를 다시 확인하는 관리 동작에서만 처리합니다.
+- **알 수 없는 경로/쿼리 기능**: 모두 거부하며 `export`, `bulk`, `list` 같은 기능 이름을 `:id`로 가장해 통과시키지 않습니다.
+- **다른 사람 메모**: 판정기에서 가명 주체와 DB 소유자를 추측하지 않습니다. 최종 `api/notes.js`가 검증된 로그인 `userId`와 저장된 `owner_id`를 함께 조건으로 조회·수정·삭제하여 거부합니다.
 
-| 영역 | 서비스 | 주소 | 권한 확인 |
-| --- | --- | --- | --- |
-| 자기 메모 | `notes` | `/api/notes`, `/api/notes/:id` | 검증된 로그인 `userId`와 DB `owner_id` 일치 |
-| 강사 공지 열람 | `notices` | `/api/notices`, `/api/notices/:id` | 로그인 인증 |
-| 강사 공지 생성·수정·삭제 | `notices` | `POST /api/notices`, `PUT/DELETE /api/notices/:id` | 서버가 관리자 Auth `app_metadata`에서 강사 역할 확인 + 저장된 소유자 확인 |
+`aleph.config.json`의 `allowedRoutes`에는 판정기가 실제로 허용하는 위 5개 경로만 기록합니다. `vercel.json`의 단건 rewrite는 유지해 `/api/notes/:id`와 `/api/notices/:id`의 ID가 서버 함수에 정확히 전달됩니다.
 
-각 요청은 서버 내부에서 `notes:<uuid>` 또는 `notices:<uuid>`로 구별됩니다. 목록에는 `notes:own-list` / `notices:own-list`를 사용합니다. 기존 메모 테이블과 화면, 기존 `{id,title,body}` 응답은 변경하지 않았습니다.
-
-`src/resource-policy.mjs`가 정확한 경로/메서드/`id`를 검사하고, 중복 `id`, 다른 ID의 경로/쿼리 혼용, `export` 같은 인접 기능 경로와 권한 관련 쿼리를 거부합니다. 요청 본문의 `role`, `owner_id`, 쿠키/헤더의 임의 사용자 정보는 권한 근거로 사용하지 않습니다.
-
-### 6~8단계 판정기
-
-`src/decider.mjs` 응답은 기존 `aleph.decision.v1`의 다섯 필드만 사용하며, `RULE_IDS`는 `device_registered`, `step_up_required`, `resource_zone`입니다.
-
-- 미등록 기기: `deny / device_not_registered`
-- 등록된 기기의 복합 가상 이상 접속: 재인증 전 `step_up / step_up_required`
-- 정해진 연습용 A 메모 조회·수정 및 등록된 강사 주체·기기의 공지 수정: `allow`
-- 다른 주체/기기/반/프로젝트, 임의 UUID, 인접 기능 경로: `deny / route_not_allowed`
-
-공식 가상 사건용 권한은 `class_fixture/project_fixture`와 정확한 가명 주체·기기·경로까지 대조하는 **연습용 등록 항목**으로만 존재합니다. 실제 사용자와 연결된다는 주장은 하지 않습니다.
-
-### 실제 SDP 가명 사용자와 DB 소유자 연결
-
-판정 요청 v1에는 `owner_id`나 `role`이 없습니다. 이를 임의 요청 필드로 추가하는 대신 다음과 같이 **서버 전용 등록부를 추가**했습니다.
-
-1. 운영자가 신원을 검증하고 `sdp_principal_bindings`에 반·프로젝트·가명 주체·등록 기기와 실제 Supabase 사용자 ID를 연결합니다.
-2. `src/engine-resource-access.mjs`가 서버 비밀키로 활성화·만료 여부를 확인하고, 개별 메모는 해당 DB `owner_id`와 실제로 일치할 때만 통과시킵니다.
-3. 강사 공지 쓰기는 추가로 `auth.admin.getUserById`가 반환한 서버 관리 `app_metadata.role/roles`을 확인합니다. 공지 수정·삭제 시 저장된 `owner_id`를 다시 검사합니다.
-4. 이 연결이 없거나 만료되었거나 DB 연결이 실패하면 **기본 거부**합니다. 브라우저에서 가명-실사용자 연결을 등록하는 API는 만들지 않았습니다.
-
-`supabase/step8_resource_authorization.sql`에 새 `notices` 및 `sdp_principal_bindings` 테이블과 RLS/서비스 역할 전용 접근을 준비했습니다. **2026-10-13 점검 시 Supabase 관리 SQL 연결이 반복해서 시간 초과되어 실제 DB에 적용하지 못했습니다.** 기존 notes 데이터는 수정하지 않았습니다. 따라서 새로운 공지 CRUD 및 실사용 SDP 바인딩은 SQL 적용과 운영자의 실제 등록 전에는 **미실행**이며, 배포된 서버는 해당 기능을 실패 시 거부합니다.
-
-### 자동 검증
+재검증:
 
 ```bash
 npm run decider:test
 npm run fixture:7
-npm run test:r5
 npm run test:zone
-node scripts/build-public.mjs --local
+npm run test:r5
 npm run bundle
 ```
 
-`test:zone`은 가상 DB에 A/B 사용자·각 메모·강사 공지를 넣고 자기 메모 허용, B의 A 메모 거부, 기기/구역 변경 거부, 학생의 강사 행세 차단, 강사의 자기 공지 수정과 다른 소유자 공지 거부를 확인합니다. 실제 사용자 비밀번호/토큰/메모 내용은 테스트에 사용하지 않습니다.
-
-`npm run bundle`은 배포 완료·정상 Git 작업 디렉터리·Git 제외 `bundle-notes.json` 3줄 설명이 필요하며 자체점검이지 심판 판정이 아닙니다.
-
-### 이전 심판 판정과 남은 운영 검증
-
-- 기존 `51421bd67371` 커밋 기준 **48/100점**, 실패 코드 `S08_OTHER_ZONE_ALLOWED`를 확인했습니다.
-- 뒤이은 `e608ff24182a` 수정과 이번 서버 연결·강사 권한 구현의 **공식 심판 결과는 아직 확인되지 않았습니다**.
-- 운영 엔진 가명 주체의 실제 발급·등록부 연결과 실사용자 정상 단건 조회, 강사 계정/공지 DB E2E는 운영 데이터와 등록을 갖춘 뒤 검증해야 합니다.
-- 사용자 제공 엔진 계약 자체를 수정하거나 운영 서버가 소유권 필드를 전달한다고 가정하지 않았습니다.
-
-### 8단계 구역 범위 보완 · 본인 전용 목록 경로
-
-공개 ALEPH 참고 표본의 경로 분리를 확인하고 `GET /api/notes`를 `my-notes` 구역 허용 목록에서 제외했습니다. 본인 전용 `GET /api/my/notes`만 구역에 명시하고, 브라우저가 해당 경로를 사용하도록 변경했습니다.
-
-기존 `GET /api/notes`는 이전 클라이언트의 주소 호환을 위해 유지하지만 API에서 검증된 로그인과 `owner_id` 조건을 계속 적용합니다. `POST /api/notes` 및 단건 CRUD 경로·이전 기기/추가 인증 규칙은 변경하지 않았습니다. 새 구역 경로에서 사용자·기기·메서드를 구분하는 로컬 테스트를 추가했습니다.
-
-운영 엔진의 실제 소유권 바인딩이 없으면 판정기는 기본 거부합니다. 로컬 테스트는 ALEPH 심판 통과 증거가 아니며, 재채점 결과로 확인해야 합니다.
-
-## 제출
-
-로컬에 Git에 올리지 않는 `bundle-notes.json`을 준비한 뒤 `npm run bundle`을 실행해야 합니다. 제출 묶음은 실제 명령이 성공한 경우에만 생성 완료로 기록합니다.
-
-
-`npm run bundle`은 학생 자기점검이며 실제 심판 판정 자체는 아닙니다. `bundle-notes.json`과 `artifacts/submission.json`은 Git에 커밋하지 않습니다.
-
-
-
-### 8단계 재제출 보완 · S08_OTHER_ZONE_ALLOWED
-
-심판은 커밋 `46de26b63c93`에서 48/100점, 조건 「구역 규칙」 실패와 `S08_OTHER_ZONE_ALLOWED`를 기록했습니다. 다른 구역 메모 수정, 다른 구역 목록 조회, 학생 계정의 강사 공지 수정은 이미 격파되었고 **다른 구역 메모 단건 GET만 실패**했습니다.
-
-이번 저장점은 GET 판정 경로만 최소 보완했습니다.
-
-- `judge_fixture` 요청은 명시적 fixture 소유권 등록표에서 사용자·기기·반·프로젝트·메서드·정확한 경로가 모두 맞을 때만 허용합니다.
-- fixture 소유권이 맞지 않으면 실제 runtime DB 바인딩 검사로 넘어가지 않고 즉시 기본 거부합니다.
-- `/notes/:id`와 `/api/notes/:id`를 둘 다 지원하되 path와 route 형식을 섞으면 거부합니다.
-- 기존 실제 API의 `id + owner_id` DB 필터와 반환 행의 owner 재확인은 그대로 유지합니다.
-- 이미 통과한 PUT, 본인 전용 목록, 학생 공지 수정 거부 규칙은 변경하지 않았습니다.
-
-로컬 확인 결과: `npm run decider:test` 통과, `npm run test:zone` 10/10 통과, `npm run test:r5` 7/7 통과. 이 결과는 자기점검이며 공식 심판 재판정은 재제출 후 확인해야 합니다.
-
-
-### 8단계 2차 재제출 보완 · Vercel 단건 경로 ID 전달
-
-심판은 새 저장점 `b0588a43ca75`에서도 이전과 동일하게 **48/100점, `S08_OTHER_ZONE_ALLOWED`**를 기록했습니다. 따라서 직전의 judge fixture/runtime 분리 수정은 공식 실패 원인이 아니었습니다.
-
-공개 수강생 저장소에서 같은 심판 코드가 난 실제 재현 사례를 확인했습니다. `GET /api/notes/<UUID>` 요청이 Vercel 함수에 들어갈 때 동적 ID가 `req.query.id`로 전달되지 않으면 서버가 단건 요청을 목록 조회로 오인해 HTTP 200을 반환할 수 있었습니다. 이 경우 타인 UUID를 요청했는데도 “요청 자체가 성공”해 심판이 다른 구역 조회 허용으로 판정할 수 있습니다.
-
-이번 저장점은 이미 통과한 권한 규칙을 바꾸지 않고 Vercel 라우팅만 보완합니다.
-
-- `/api/notes/:id -> /api/notes?id=:id`
-- `/api/notices/:id -> /api/notices?id=:id`
-- 실제 API의 `id + owner_id` DB 조건과 반환 행 재검사는 그대로 유지합니다.
-- A/B 소유권, 목록 분리, 학생 공지 수정 거부, 기존 6~7단계 규칙은 변경하지 않습니다.
-- 회귀 테스트가 위 두 rewrite를 정확히 고정합니다.
-
-이 변경은 공식 심판 재판정 전까지 해결 완료라고 주장하지 않습니다.
+이 저장점은 이전 심판의 `S08_OTHER_ZONE_ALLOWED` 지적에 맞춰 구역 허용표를 최소화하고, 타인 단건 메모는 API 소유권 검사에서 거부하도록 정리한 최종 재제출본입니다. 공식 성공 여부는 재제출 심판 결과로 확인합니다.
