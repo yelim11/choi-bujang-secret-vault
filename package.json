@@ -11,7 +11,7 @@
     "fixture:7": "node scripts/fixture-7.mjs",
     "xdr:run": "node scripts/xdr-run.mjs",
     "test:zone": "node --test test/zone-stage8.test.mjs",
-    "policy:diff": "node scripts/policy.mjs diff",
+    "policy:diff": "node src/policy-diff.mjs",
     "policy:restore": "node scripts/policy.mjs restore",
     "policy:test": "node scripts/policy-test.mjs",
     "restore:test": "node scripts/restore-test.mjs"

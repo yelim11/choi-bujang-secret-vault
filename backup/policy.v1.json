@@ -1,0 +1,19 @@
+{
+  "schema": "aleph.policy.snapshot.v1",
+  "version": "9단계-통과-시점",
+  "policy": {
+    "rules": [
+      "device_registered",
+      "step_up_required",
+      "resource_zone"
+    ],
+    "allowedRoutes": [
+      "GET /api/notes/:id",
+      "PUT /api/notes/:id",
+      "DELETE /api/notes/:id",
+      "GET /api/notices",
+      "GET /api/notices/:id"
+    ]
+  },
+  "sha256": "464591883d9c4a7b453400d2818d82a2b8db8489725b6e36abd6adf773fe5e4f"
+}

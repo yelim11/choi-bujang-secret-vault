@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 import { restoreNote } from '../src/restore-note.mjs';
+import backupSnapshot from '../backup/note.v1.json' with { type: 'json' };
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 function noStore(res){for(const [k,v] of [['Cache-Control','no-store'],['CDN-Cache-Control','no-store'],['Vercel-CDN-Cache-Control','no-store'],['X-Content-Type-Options','nosniff']])res.setHeader(k,v);}
 function readBody(req){
@@ -25,7 +26,7 @@ export async function handleRestoreRequest(req,res,current){
   if(!body||!Object.keys(body).every(k=>k==='dryRun')||(Object.hasOwn(body,'dryRun')&&typeof body.dryRun!=='boolean'))
     return res.status(400).json({error:'INVALID_RESTORE_REQUEST'});
   const id=typeof req.query?.id==='string'?req.query.id:'';if(!UUID.test(id))return res.status(400).json({error:'INVALID_NOTE_ID'});
-  const result=await restoreNote({supabase:current.supabase,ownerId:identity.userId,noteId:id,dryRun:body.dryRun===true});
+  const result=await restoreNote({supabase:current.supabase,ownerId:identity.userId,noteId:id,snapshot:backupSnapshot,dryRun:body.dryRun===true});
   return res.status(result.status).json(result.body);
 }
 export default async function handler(req,res){return handleRestoreRequest(req,res,getRuntime());}

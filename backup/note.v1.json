@@ -1,0 +1,27 @@
+{
+  "schema": "aleph.note.snapshot.v1",
+  "version": "9단계-통과-시점",
+  "notes": [
+    {
+      "id": "476476ba-bfad-4396-b0ac-94da994f7c9a",
+      "ownerSha256": "aef2f3399914e78a63e6823abc959114c806a057ce1f9037138e8959af93d8a2",
+      "contentSha256": "0d30af40697c2c496703137b35d10277c8e7cf60cd6246dbca4704ea35dd6f17"
+    },
+    {
+      "id": "7f035fab-1221-43c6-bbe9-00f04d8b3e36",
+      "ownerSha256": "aef2f3399914e78a63e6823abc959114c806a057ce1f9037138e8959af93d8a2",
+      "contentSha256": "da0daa78a8b1f4464ce8688912f63f1d9414e8f24fc1ec2f271ea8ea88df4853"
+    },
+    {
+      "id": "ab0ce9e6-e281-4e15-9914-1e0dd7550a0a",
+      "ownerSha256": "aef2f3399914e78a63e6823abc959114c806a057ce1f9037138e8959af93d8a2",
+      "contentSha256": "49e19690d2c201caf045482c496fc42f47bca4126fba022f8cb6201e3f9d6950"
+    },
+    {
+      "id": "f75f45e0-7513-405e-a5a2-930b6b2a2181",
+      "ownerSha256": "e1bb733b9ec67154b304d7065efd23f7b0217a775d21a4b90b5f6901790b69a2",
+      "contentSha256": "2db708131a55ce221486e5c802e28dfa84db765e146dcbe7fdeec3354b971fdb"
+    }
+  ],
+  "sha256": "2c37efaff2654b0704daa480bfeb942fe6569f81fb557a3c44edf4387b15d3d6"
+}

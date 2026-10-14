@@ -209,8 +209,15 @@ export async function runAttackChecks(config) {
   if (config.step >= 10) {
     const restorePath=typeof config.restoreRoute==='string'?config.restoreRoute.split(' ')[1]?.replace(':id',testId):null;
     let restoreStatus=0;if(restorePath){const rr=await fetch(new URL(restorePath,app),{redirect:'error',signal:AbortSignal.timeout(10000),headers:{Accept:'application/json'}});restoreStatus=rr.status;}
-    const {fileURLToPath}=await import('node:url');const {planRestore}=await import('./policy-restore.mjs');
-    const plan=planRestore({safePath:fileURLToPath(new URL('../policy/safe-policy.json',import.meta.url)),testPath:fileURLToPath(new URL('../policy/test-policy.json',import.meta.url))});
+    const {loadSnapshot,diffPolicy,currentPolicy}=await import('./policy-diff.mjs');
+    let plan;
+    try{
+      const snapshot=loadSnapshot();
+      const diff=diffPolicy(snapshot,currentPolicy(config));
+      plan={ok:true,version:snapshot.version,changes:Array(diff.changed).fill(null)};
+    }catch(error){
+      plan={ok:false,error:error.message};
+    }
     results.push(
       {attackId:'anonymous_restore_denied',expected:'로그인 없는 복구 경로 호출은 거부',observed:[401,403].includes(restoreStatus)?`비로그인 복구 HTTP ${restoreStatus} 거부 확인`:`복구 거부 확인 실패 (HTTP ${restoreStatus||'미호출'})`},
       {attackId:'safe_policy_snapshot_verified',expected:'안전 정책 사본 해시 검증 후 실행 전 변경 범위 확인',observed:plan.ok?`사본 ${plan.version} 검증, 현재 차이 ${plan.changes.length}개`:`사본 검증 실패: ${plan.error}`},
