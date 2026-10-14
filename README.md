@@ -331,3 +331,21 @@ npm run xdr:run -- privilege
 ```
 
 시험 fixture 26건 결과는 `block 9 / alert 8 / record 9`, 정상 이벤트 block 0건입니다. 이 결과는 수업용 fixture 자기점검이며 운영 심판 판정을 뜻하지 않습니다.
+
+## 보너스 XDR · 자료 빼돌리기
+
+기존 `src/decider.mjs` 규칙은 수정하지 않고 `xdr/exfiltration` 부품을 추가했습니다.
+
+- `read-alerts.mjs`: Wazuh fixture에서 시각·출발 주소·계정·규칙 수준·설명만 추출하고 비밀값처럼 보이는 문자열을 가립니다.
+- `patterns.json`: MITRE ATT&CK T1041·T1048에 근거해 처음 보는 목적지의 대용량 전송, 업무 시간 밖 반출, 반복 전송, 비표준 통로와 애매한 전송을 구분합니다.
+- `decide.mjs`: import·파일 I/O·네트워크 없이 단독 계산하며 명확한 유출은 block, 애매한 전송은 alert, 정상 활동은 record입니다.
+- `respond.mjs`: 고확신도 block만 **목적지** 단위로 만료 시각·근거 경보 번호가 있는 `deny-rules.json`에 연결합니다. 정상 record에서 사용된 목적지는 차단 후보에서 제외합니다.
+- block/alert는 `xdr/alerts.log`에 기록하고 공용 `xdr-run.mjs`가 `bridge.mjs`를 통해 연결합니다.
+
+재실행:
+
+```bash
+npm run xdr:run -- exfiltration
+```
+
+시험 fixture 30건 결과는 `block 10 / alert 10 / record 10`, 정상 이벤트 block 0건입니다. block 10건은 중복 목적지를 합쳐 임시 거부 후보 목적지 8개가 됩니다. 이 결과는 수업용 fixture 자기점검이며 운영 심판 판정을 뜻하지 않습니다.

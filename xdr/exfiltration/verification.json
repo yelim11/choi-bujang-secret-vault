@@ -1,0 +1,8 @@
+{
+  "schema": "aleph.xdr.verification.v1",
+  "moduleKey": "exfiltration",
+  "alertsRead": 30,
+  "blockCandidates": 8,
+  "normalEventsBlocked": 0,
+  "baseDeciderModified": false
+}

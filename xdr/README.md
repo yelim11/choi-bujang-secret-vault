@@ -89,3 +89,19 @@ npm run xdr:run -- privilege
 ```
 
 fixture 26건 결과: `block 9 / alert 8 / record 9`, 정상 이벤트 block 0건.
+
+## exfiltration
+
+`xdr/fixtures/exfiltration.json`의 30개 가상 Wazuh 경보를 MITRE ATT&CK T1041·T1048 근거로 판정합니다.
+
+- 처음 보는 목적지의 대용량 전송·업무 시간 밖 대용량 반출·반복 전송·비표준 통로의 대용량 전송: `block`
+- 중간 크기 전송·작은 낯선 목적지 전송·전송 실패 등 증거가 부족한 이벤트: `alert`
+- 정상 자료 열람·동기화·저장·로그아웃 등 일반 활동: `record`
+
+`decide.mjs`는 standalone 판단기이며 `respond.mjs`는 고확신도 block만 목적지 단위로 `deny-rules.json`에 연결합니다. 기존 `src/decider.mjs`는 수정하지 않습니다.
+
+```bash
+npm run xdr:run -- exfiltration
+```
+
+fixture 30건 결과: `block 10 / alert 10 / record 10`, 정상 이벤트 block 0건, 목적지 차단 후보 8개.
