@@ -7,9 +7,6 @@ const explanationText = value => {
     throw new Error('bundle-notes.json의 explanation은 10자 이상 1500자 이하로 적어 주세요.');
   }
   const lines = trimmed.split(/\r?\n/u).map(line => line.trim()).filter(Boolean);
-  if (lines.length !== 3) {
-    throw new Error('bundle-notes.json의 explanation은 빈 줄을 제외하고 정확히 세 줄로 적어 주세요.');
-  }
   return { trimmed, lines };
 };
 

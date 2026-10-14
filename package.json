@@ -17,7 +17,8 @@
     "restore:test": "node scripts/restore-test.mjs",
     "test:11": "node --test test/stage11.test.mjs",
     "test:12": "node --test test/stage12.test.mjs",
-    "recon:table": "node scripts/recon-table.mjs"
+    "recon:table": "node scripts/recon-table.mjs",
+    "verify:table": "node scripts/recon-table.mjs"
   },
   "engines": {
     "node": ">=22"

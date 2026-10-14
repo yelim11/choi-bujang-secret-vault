@@ -1,8 +1,6 @@
-import { apiRequest } from './auth-client.js';
-
 const room=document.querySelector('#war-room');
 const workspace=document.querySelector('#workspace');
-const refreshButton=document.querySelector('#war-room-refresh');
+const refresh=document.querySelector('#war-room-refresh');
 const statusRoot=document.querySelector('#war-room-status');
 const rulesRoot=document.querySelector('#war-room-rules');
 const detectRoot=document.querySelector('#war-room-detect');
@@ -11,49 +9,49 @@ const recoveryRoot=document.querySelector('#war-room-recovery');
 const assaultRoot=document.querySelector('#war-room-assault');
 const logRoot=document.querySelector('#war-room-log');
 
-const statusName=value=>value==='confirmed'?'실제 서버 확인':value==='listed'?'코드 목록 · 실행 결과 아님':'미실행';
 const clear=()=>{
-  for(const element of[rulesRoot,detectRoot,revokeRoot,recoveryRoot,assaultRoot])element.textContent='미확인';
+  for(const el of[rulesRoot,detectRoot,revokeRoot,recoveryRoot,assaultRoot])el.textContent='미확인';
   logRoot.textContent='';
 };
 
-async function refreshWarRoom(){
-  if(workspace.hidden){room.hidden=true;clear();return;}
+async function load(){
+  if(workspace.hidden){
+    room.hidden=true;
+    clear();
+    return;
+  }
   room.hidden=false;
-  statusRoot.textContent='실제 API 응답을 확인하는 중…';
+  statusRoot.textContent='실제 API 점검 기록을 읽는 중…';
   try{
-    const response=await apiRequest('/api/war-room');
+    const response=await fetch('/api/ops',{cache:'no-store'});
     const data=await response.json().catch(()=>null);
-    if(!response.ok||!data){
+    if(!response.ok||data?.schema!=='aleph.ops.v1'){
       clear();
-      statusRoot.textContent=`작전실 API를 확인하지 못했습니다 (HTTP ${response.status}).`;
-      if(response.status===401||response.status===403)room.hidden=true;
+      statusRoot.textContent='서버 기록을 읽지 못했습니다. 수치를 표시하지 않습니다.';
       return;
     }
-    const ids=Array.isArray(data.decider?.ruleIds)?data.decider.ruleIds.join(', '):'목록 없음';
-    rulesRoot.textContent=`${statusName(data.decider?.status)} · ${data.decider?.ruleCount??'?'}개 · ${ids}`;
-
-    detectRoot.textContent=data.detect?.status==='not_run'
-      ? '미실행/미연결 · 사건 수를 0으로 간주하지 않음'
-      : `${statusName(data.detect?.status)} · 사건 ${data.detect?.events??'?'}건 · 회수 제안 ${data.detect?.proposals??'?'}건`;
-
-    revokeRoot.textContent=`${statusName(data.revocation?.status)} · 승인 ${data.revocation?.approved??'?'} · 대기 ${data.revocation?.pending??'?'} · 회수 ${data.revocation?.revoked??'?'}`;
-
-    const policy=data.recovery?.policy??{},notes=data.recovery?.notes??{};
-    recoveryRoot.textContent=`${statusName(data.recovery?.status)} · 정책 ${policy.verified?'검증됨':'검증 실패'} (${policy.version??'버전 없음'}, 차이 ${policy.changed??'미확인'}) · 메모 사본 ${notes.verified?'검증됨':'검증 실패'} (${notes.version??'버전 없음'}, 항목 ${notes.entries??'미확인'})`;
-
-    assaultRoot.textContent=data.totalAssault?.status==='not_run'
-      ? `미실행 · ALEPH 총공세 ${data.totalAssault?.expectedAttackTypes??41}종은 심판 실행 전 통과로 표시하지 않음`
-      : `${statusName(data.totalAssault?.status)} · ${data.totalAssault?.completedAttackTypes??'?'}종 확인`;
-
-    statusRoot.textContent=`API 확인 시각 ${data.checkedAt??'미확인'} · 요청 ID ${data.requestId??'없음'}`;
-    logRoot.textContent=typeof data.logLine==='string'?data.logLine:'가린 서버 기록 없음';
-  }catch(error){
+    const stage9=(data.items??[]).filter(item=>item.stage===9);
+    rulesRoot.textContent='코드 목록 · '+(data.rules?.count??'-')+'개 · '+(data.rules?.ids??[]).join(', ');
+    detectRoot.textContent=stage9.length
+      ?'실제 점검 '+stage9.length+'건 · '+stage9.map(item=>item.result).join(', ')
+      :'미실행';
+    const summary=data.summary??{};
+    revokeRoot.textContent='전체 점검 기준 기대와 일치 '+(summary.blocked??'-')+
+      ' · 다름 '+(summary.failed??'-')+' · 미실행 '+(summary.notRun??'-');
+    const recovery=data.recovery??{};
+    recoveryRoot.textContent='정책 '+(recovery.policy?.valid?'검증됨':'검증 실패')+
+      ' ('+(recovery.policy?.version??'-')+', 차이 '+(recovery.policy?.changes??'-')+') · 메모 '+
+      (recovery.notes?.valid?'검증됨':'검증 실패')+
+      ' ('+(recovery.notes?.version??'-')+', 항목 '+(recovery.notes?.entries??'-')+')';
+    assaultRoot.textContent='미실행 · 41종 총공세는 ALEPH 심판 결과 전 통과로 표시하지 않음';
+    statusRoot.textContent='확인 시각 '+(data.checkedAt??'-')+' · 검사 커밋 '+(data.commit??'-');
+    logRoot.textContent=typeof data.logLine==='string'?data.logLine:'기록 없음';
+  }catch{
     clear();
-    statusRoot.textContent=error instanceof Error?error.message:'작전실 API 확인 실패';
+    statusRoot.textContent='서버에 연결하지 못했습니다. 수치를 표시하지 않습니다.';
   }
 }
 
-refreshButton.addEventListener('click',()=>void refreshWarRoom());
-new MutationObserver(()=>{void refreshWarRoom();}).observe(workspace,{attributes:true,attributeFilter:['hidden']});
-void refreshWarRoom();
+refresh.addEventListener('click',()=>void load());
+new MutationObserver(()=>void load()).observe(workspace,{attributes:true,attributeFilter:['hidden']});
+void load();

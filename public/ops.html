@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BYTE BACK · 탈환 작전실</title>
+  <style>
+    :root{color-scheme:dark;font-family:system-ui,sans-serif}
+    body{margin:0;background:#0c1522;color:#edf5ff}
+    main{max-width:1100px;margin:auto;padding:36px 18px}
+    .box{border:1px solid #344b63;border-radius:14px;background:#132235;padding:16px;margin:14px 0}
+    .scroll{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:8px;border-bottom:1px solid #344b63;text-align:left;vertical-align:top}
+    th{color:#8ad8df}
+    .blocked{color:#9be7a6}.breached{color:#ffb8c4}.not_run{color:#f2d88a}
+    button{padding:9px 14px;border:1px solid #8ad8df;border-radius:9px;background:transparent;color:#8ad8df}
+    .log{white-space:pre-wrap;overflow-wrap:anywhere}
+  </style>
+</head>
+<body>
+<main>
+  <div>BYTE BACK · 12단계</div>
+  <h1>탈환 작전실</h1>
+  <p>수치와 표는 모두 <code>/api/ops</code>가 같은 실제 점검 목록에서 만든 결과입니다. 서버 기록을 읽지 못하면 값을 채우지 않습니다.</p>
+  <button id="reload" type="button">다시 읽기</button>
+  <p id="status">서버 기록을 읽는 중입니다.</p>
+
+  <section class="box" id="summary" hidden>
+    <h2>점검 요약</h2>
+    <dl>
+      <dt>점검 항목</dt><dd data-k="total">-</dd>
+      <dt>기대와 일치</dt><dd data-k="blocked">-</dd>
+      <dt>기대와 다름</dt><dd data-k="failed">-</dd>
+      <dt>미실행</dt><dd data-k="notRun">-</dd>
+    </dl>
+    <p id="meta"></p>
+    <pre id="log" class="log"></pre>
+  </section>
+
+  <section class="box" id="rules" hidden>
+    <h2>판정기 규칙</h2>
+    <p id="rules-text"></p>
+  </section>
+
+  <section class="box" id="recovery" hidden>
+    <h2>복구 버전</h2>
+    <p id="recovery-text"></p>
+  </section>
+
+  <section id="items" hidden>
+    <h2>1~11단계 정상·금지 요청 표</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>단계</th><th>종류</th><th>요청</th><th>기대</th><th>실제</th><th>요청 ID</th><th>확인 시각</th><th>결과</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+<script type="module">
+const $=id=>document.getElementById(id);
+const KIND={live_api:'실제 API',not_run:'미실행'};
+const RESULT={blocked:'기대와 일치',breached:'기대와 다름',not_run:'미실행'};
+
+function render(data){
+  for(const dd of document.querySelectorAll('#summary dd')){
+    const value=data.summary?.[dd.dataset.k];
+    dd.textContent=Number.isInteger(value)?String(value):'-';
+  }
+  $('meta').textContent='확인 시각 '+(data.checkedAt??'-')+' · 검사 커밋 '+(data.commit??'-');
+  $('log').textContent=typeof data.logLine==='string'?data.logLine:'기록 없음';
+  $('summary').hidden=false;
+
+  $('rules-text').textContent='규칙 '+(data.rules?.count??'-')+'개: '+(data.rules?.ids??[]).join(', ');
+  $('rules').hidden=false;
+
+  const recovery=data.recovery??{};
+  $('recovery-text').textContent=
+    '정책 '+(recovery.policy?.valid?'검증됨':'검증 실패')+
+    ' · 버전 '+(recovery.policy?.version??'-')+
+    ' · 현재 차이 '+(recovery.policy?.changes??'-')+
+    ' / 메모 사본 '+(recovery.notes?.valid?'검증됨':'검증 실패')+
+    ' · 버전 '+(recovery.notes?.version??'-')+
+    ' · 항목 '+(recovery.notes?.entries??'-');
+  $('recovery').hidden=false;
+
+  $('rows').replaceChildren(...(data.items??[]).map(item=>{
+    const tr=document.createElement('tr');
+    const cells=[
+      item.stage,KIND[item.kind]??item.kind,item.request,item.expected,item.observed,
+      item.requestId??'-',item.checkedAt??'-',RESULT[item.result]??item.result
+    ];
+    cells.forEach((value,index)=>{
+      const td=document.createElement('td');
+      td.textContent=String(value);
+      if(index===7)td.className=item.result;
+      tr.append(td);
+    });
+    return tr;
+  }));
+  $('items').hidden=false;
+}
+
+async function load(){
+  $('status').textContent='서버 기록을 읽는 중입니다.';
+  try{
+    const response=await fetch('/api/ops',{cache:'no-store'});
+    const data=await response.json().catch(()=>null);
+    if(!response.ok||data?.schema!=='aleph.ops.v1'){
+      $('status').textContent='서버 기록을 읽지 못했습니다. 수치를 표시하지 않습니다.';
+      return;
+    }
+    render(data);
+    $('status').textContent='실제 API 점검 기록을 읽었습니다.';
+  }catch{
+    $('status').textContent='서버에 연결하지 못했습니다. 수치를 표시하지 않습니다.';
+  }
+}
+$('reload').addEventListener('click',load);
+load();
+</script>
+</main>
+</body>
+</html>
