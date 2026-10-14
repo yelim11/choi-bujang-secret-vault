@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 import { restoreNote } from '../src/restore-note.mjs';
+import { deviceGate } from '../src/device-session.mjs';
 import backupSnapshot from '../backup/note.v1.json' with { type: 'json' };
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 function noStore(res){for(const [k,v] of [['Cache-Control','no-store'],['CDN-Cache-Control','no-store'],['Vercel-CDN-Cache-Control','no-store'],['X-Content-Type-Options','nosniff']])res.setHeader(k,v);}
@@ -21,6 +22,8 @@ export async function handleRestoreRequest(req,res,current){
   noStore(res);if(!current)return res.status(503).json({error:'RESTORE_BACKEND_NOT_CONFIGURED'});
   const identity=await current.verifyLogin(req.headers?.authorization);
   if(!identity){res.setHeader('WWW-Authenticate','Bearer');return res.status(401).json({error:'UNAUTHORIZED'});}
+  const deviceBlocked=await deviceGate(identity,current.supabase);
+  if(deviceBlocked)return res.status(deviceBlocked.status).json({error:deviceBlocked.error});
   if(req.method!=='POST'){res.setHeader('Allow','POST');return res.status(405).json({error:'METHOD_NOT_ALLOWED'});}
   const body=readBody(req);
   if(!body||!Object.keys(body).every(k=>k==='dryRun')||(Object.hasOwn(body,'dryRun')&&typeof body.dryRun!=='boolean'))

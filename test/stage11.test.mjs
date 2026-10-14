@@ -1,0 +1,5 @@
+import assert from'node:assert/strict';import{readFile}from'node:fs/promises';import{test}from'node:test';import config from'../aleph.config.json'with{type:'json'};
+const text=p=>readFile(new URL(`../public/${p}`,import.meta.url),'utf8');
+test('11단계 manifest',async()=>{assert.equal(config.step,11);const m=JSON.parse(await text('manifest.webmanifest'));assert.equal(m.name,'BYTE BACK 내 자료실');assert.equal(m.display,'standalone');assert.deepEqual(m.icons.map(x=>x.sizes).sort(),['192x192','512x512']);assert.match(m.description,/설치는 기기 확인이 아니며/u)});
+test('브라우저 영구 저장소를 쓰지 않음',async()=>{for(const p of['auth-client.js','app.js','sw.js'])assert.doesNotMatch(await text(p),/localStorage|sessionStorage|indexedDB|document\.cookie/u,p)});
+test('승인 전 자료실 숨김과 패스키 흐름',async()=>{const[h,a]=await Promise.all([text('index.html'),text('app.js')]);assert.match(h,/id="workspace" hidden/u);assert.match(h,/버튼만 눌러서는 승인되지 않습니다/u);assert.match(a,/navigator\.credentials\.create/u);assert.match(a,/navigator\.credentials\.get/u);assert.match(a,/sessionVerified===true/u)});

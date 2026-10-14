@@ -14,13 +14,15 @@
     "policy:diff": "node src/policy-diff.mjs",
     "policy:restore": "node scripts/policy.mjs restore",
     "policy:test": "node scripts/policy-test.mjs",
-    "restore:test": "node scripts/restore-test.mjs"
+    "restore:test": "node scripts/restore-test.mjs",
+    "test:11": "node --test test/stage11.test.mjs"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",
-    "jose": "6.2.12"
+    "jose": "6.2.12",
+    "@simplewebauthn/server": "13.3.3"
   }
 }

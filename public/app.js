@@ -1,201 +1,29 @@
-import { apiRequest, currentSession, onAuthChange, signIn, signOut } from './auth-client.js';
-
-const signedOut = document.querySelector('#signed-out');
-const signedIn = document.querySelector('#signed-in');
-const workspace = document.querySelector('#workspace');
-const loginForm = document.querySelector('#login-form');
-const logoutButton = document.querySelector('#logout');
-const loginStatus = document.querySelector('#login-status');
-const workspaceStatus = document.querySelector('#workspace-status');
-const notesRoot = document.querySelector('#notes');
-const createForm = document.querySelector('#create-form');
-
-const setStatus = (element, message = '', error = false) => {
-  element.textContent = message;
-  element.classList.toggle('error', error);
-};
-
-const apiError = async (response, fallback) => {
-  try {
-    const data = await response.json();
-    return typeof data?.error === 'string' ? data.error : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const renderAuth = session => {
-  const loggedIn = Boolean(session);
-  signedOut.hidden = loggedIn;
-  signedIn.hidden = !loggedIn;
-  workspace.hidden = !loggedIn;
-  if (!loggedIn) {
-    notesRoot.replaceChildren();
-    setStatus(workspaceStatus);
-  }
-};
-
-const noteEditor = note => {
-  const article = document.createElement('article');
-  article.className = 'note';
-
-  const grid = document.createElement('div');
-  grid.className = 'note-grid';
-
-  const titleLabel = document.createElement('label');
-  titleLabel.textContent = '제목';
-  const title = document.createElement('input');
-  title.maxLength = 120;
-  title.value = note.title;
-  titleLabel.append(title);
-
-  const bodyLabel = document.createElement('label');
-  bodyLabel.textContent = '본문';
-  const body = document.createElement('textarea');
-  body.maxLength = 2000;
-  body.value = note.body;
-  bodyLabel.append(body);
-
-  const actions = document.createElement('div');
-  actions.className = 'note-actions';
-
-  const save = document.createElement('button');
-  save.type = 'button';
-  save.className = 'secondary';
-  save.textContent = '수정 저장';
-
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'danger';
-  remove.textContent = '삭제';
-
-  actions.append(save, remove);
-  grid.append(titleLabel, bodyLabel, actions);
-  article.append(grid);
-
-  save.addEventListener('click', async () => {
-    setStatus(workspaceStatus, '수정 중…');
-    try {
-      const response = await apiRequest(`/api/notes/${encodeURIComponent(note.id)}`, {
-        method: 'PUT',
-        body: JSON.stringify({ title: title.value, body: body.value }),
-      });
-      if (!response.ok) {
-        setStatus(workspaceStatus, await apiError(response, '수정에 실패했습니다.'), true);
-        return;
-      }
-      setStatus(workspaceStatus, '수정했습니다.');
-      await loadNotes();
-    } catch (error) {
-      setStatus(workspaceStatus, error.message, true);
-    }
-  });
-
-  remove.addEventListener('click', async () => {
-    if (!window.confirm('이 가상 메모를 삭제할까요?')) return;
-    setStatus(workspaceStatus, '삭제 중…');
-    try {
-      const response = await apiRequest(`/api/notes/${encodeURIComponent(note.id)}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) {
-        setStatus(workspaceStatus, await apiError(response, '삭제에 실패했습니다.'), true);
-        return;
-      }
-      setStatus(workspaceStatus, '삭제했습니다.');
-      await loadNotes();
-    } catch (error) {
-      setStatus(workspaceStatus, error.message, true);
-    }
-  });
-
-  return article;
-};
-
-async function loadNotes() {
-  try {
-    const response = await apiRequest('/api/my/notes');
-    if (!response.ok) {
-      setStatus(workspaceStatus, await apiError(response, '자료를 읽을 수 없습니다.'), true);
-      notesRoot.replaceChildren();
-      return;
-    }
-
-    const notes = await response.json();
-    if (!Array.isArray(notes)) {
-      setStatus(workspaceStatus, '자료 형식이 맞지 않습니다.', true);
-      return;
-    }
-
-    notesRoot.replaceChildren(...notes.map(noteEditor));
-    setStatus(workspaceStatus, notes.length ? '' : '내 메모가 없습니다. 새 메모를 추가해 보세요.');
-  } catch (error) {
-    notesRoot.replaceChildren();
-    setStatus(workspaceStatus, error.message, true);
-  }
-}
-
-loginForm.addEventListener('submit', async event => {
-  event.preventDefault();
-  setStatus(loginStatus, '로그인 중…');
-
-  const email = document.querySelector('#email').value.trim();
-  const password = document.querySelector('#password').value;
-  const { data, error } = await signIn(email, password);
-
-  if (error) {
-    setStatus(loginStatus, error.message, true);
-    return;
-  }
-
-  document.querySelector('#password').value = '';
-  setStatus(loginStatus);
-  renderAuth(data.session);
-  await loadNotes();
-});
-
-logoutButton.addEventListener('click', async () => {
-  const { error } = await signOut();
-  if (error) {
-    setStatus(workspaceStatus, error.message, true);
-    return;
-  }
-  renderAuth(null);
-});
-
-createForm.addEventListener('submit', async event => {
-  event.preventDefault();
-
-  const title = document.querySelector('#new-title');
-  const body = document.querySelector('#new-body');
-  setStatus(workspaceStatus, '추가 중…');
-
-  try {
-    const response = await apiRequest('/api/notes', {
-      method: 'POST',
-      body: JSON.stringify({ title: title.value, body: body.value }),
-    });
-
-    if (!response.ok) {
-      setStatus(workspaceStatus, await apiError(response, '추가에 실패했습니다.'), true);
-      return;
-    }
-
-    title.value = '';
-    body.value = '';
-    setStatus(workspaceStatus, '추가했습니다.');
-    await loadNotes();
-  } catch (error) {
-    setStatus(workspaceStatus, error.message, true);
-  }
-});
-
-onAuthChange(session => {
-  renderAuth(session);
-  if (session) void loadNotes();
-});
-
-const initial = await currentSession();
-if (initial.error) setStatus(loginStatus, initial.error.message, true);
-renderAuth(initial.session);
-if (initial.session) await loadNotes();
+import{apiRequest,currentSession,onAuthChange,signIn,signOut}from'./auth-client.js';const $=s=>document.querySelector(s);
+const signedOut=$('#signed-out'),signedIn=$('#signed-in'),workspace=$('#workspace'),deviceGate=$('#device-gate'),deviceState=$('#device-state'),deviceNotice=$('#device-notice'),deviceList=$('#device-list'),deviceForm=$('#device-form'),deviceStatus=$('#device-status'),loginForm=$('#login-form'),logoutButton=$('#logout'),loginStatus=$('#login-status'),workspaceStatus=$('#workspace-status'),notesRoot=$('#notes'),createForm=$('#create-form');
+const setStatus=(el,m='',e=false)=>{el.textContent=m;el.classList.toggle('error',e)},apiError=async(r,f)=>{try{const d=await r.json();return typeof d?.error==='string'?d.error:f}catch{return f}};
+const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;$('#install-state').textContent=standalone?'설치한 앱 창에서 열림 · 기기 확인과는 별개':'브라우저 탭에서 열림';
+const online=()=>{$('#offline').hidden=navigator.onLine};addEventListener('online',online);addEventListener('offline',online);online();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+function lockWorkspace(m='서버 기기 확인 전'){workspace.hidden=true;notesRoot.replaceChildren();deviceGate.hidden=false;deviceState.textContent=m}
+function renderAuth(session){const on=Boolean(session);signedOut.hidden=on;signedIn.hidden=!on;if(!on){workspace.hidden=true;deviceGate.hidden=true;notesRoot.replaceChildren();deviceState.textContent='서버 확인 전 (로그인 전)';setStatus(workspaceStatus);setStatus(deviceStatus)}else lockWorkspace()}
+const STATUS_TEXT={pending:'승인 대기',approved:'승인됨',revoked:'회수됨'};
+function renderDevices(devices){deviceList.replaceChildren(...devices.map(d=>{const li=document.createElement('li'),b=document.createElement('strong'),x=document.createElement('div');b.textContent=`${d.label} · ${STATUS_TEXT[d.status]??d.status}`;x.className='muted';x.textContent=`기기 번호 ${d.code} · ${new Date(d.createdAt).toLocaleString('ko-KR')}${d.synced?' · 동기화형 패스키':''}`;li.append(b,x);return li}))}
+async function checkDevice(){setStatus(deviceStatus,'서버에서 기기 승인 상태 확인 중…');try{const r=await apiRequest('/api/device/status');if(!r.ok){lockWorkspace('서버 확인 실패');setStatus(deviceStatus,await apiError(r,'기기 상태 확인 실패'),true);return false}const s=await r.json();renderDevices(Array.isArray(s.devices)?s.devices:[]);
+ if(s.sessionVerified===true){const until=s.expiresAt?new Date(s.expiresAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'';deviceState.textContent=`서버가 승인된 기기로 확인함${until?` · ${until}까지`:''}`;deviceGate.hidden=true;workspace.hidden=false;setStatus(deviceStatus);await loadNotes();return true}
+ const ds=Array.isArray(s.devices)?s.devices:[];if(ds.some(d=>d.status==='approved')){deviceState.textContent='승인된 기기 있음 · 패스키 확인 전';deviceNotice.textContent='승인된 기기가 있습니다. 패스키 서명을 검증하세요.'}else if(ds.some(d=>d.status==='pending')){deviceState.textContent='승인 대기 · 서버 승인 필요';deviceNotice.textContent='승인 요청은 접수됐지만 자료 권한은 없습니다.'}else if(ds.some(d=>d.status==='revoked')){deviceState.textContent='승인 회수됨';deviceNotice.textContent='기기 승인이 회수되어 자료실을 열지 않습니다.'}else{deviceState.textContent='미등록 · 승인 요청 전';deviceNotice.textContent='기기 이름을 정하고 승인 요청을 보내세요. 요청만으로는 권한이 생기지 않습니다.'}
+ workspace.hidden=true;deviceGate.hidden=false;notesRoot.replaceChildren();setStatus(deviceStatus);return false}catch(e){lockWorkspace('서버 확인 실패');setStatus(deviceStatus,e.message,true);return false}}
+const fromB64u=t=>Uint8Array.from(atob(t.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(t.length/4)*4,'=')),c=>c.charCodeAt(0)),toB64u=b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),withIds=l=>(l??[]).map(i=>({...i,id:fromB64u(i.id)}));
+async function requestApproval(label){if(!window.PublicKeyCredential)throw new Error('이 브라우저는 패스키를 지원하지 않습니다.');let r=await apiRequest('/api/device/challenge',{method:'POST',body:JSON.stringify({purpose:'register'})});if(!r.ok)throw new Error(await apiError(r,'등록 챌린지 거부'));const o=await r.json(),c=await navigator.credentials.create({publicKey:{...o,challenge:fromB64u(o.challenge),user:{...o.user,id:fromB64u(o.user.id)},excludeCredentials:withIds(o.excludeCredentials)}}),p=c.response;
+ r=await apiRequest('/api/device/register',{method:'POST',body:JSON.stringify({label,credential:{id:c.id,rawId:toB64u(c.rawId),type:c.type,response:{clientDataJSON:toB64u(p.clientDataJSON),attestationObject:toB64u(p.attestationObject),transports:p.getTransports?.()??[]},clientExtensionResults:c.getClientExtensionResults(),authenticatorAttachment:c.authenticatorAttachment??undefined}})});if(!r.ok)throw new Error(await apiError(r,'기기 승인 요청 거부'));return r.json()}
+async function proveDevice(){if(!window.PublicKeyCredential)throw new Error('이 브라우저는 패스키를 지원하지 않습니다.');let r=await apiRequest('/api/device/challenge',{method:'POST',body:JSON.stringify({purpose:'verify'})});if(!r.ok)throw new Error(await apiError(r,'승인된 기기가 아직 없습니다.'));const o=await r.json(),c=await navigator.credentials.get({publicKey:{...o,challenge:fromB64u(o.challenge),allowCredentials:withIds(o.allowCredentials)}}),p=c.response;
+ r=await apiRequest('/api/device/verify',{method:'POST',body:JSON.stringify({credential:{id:c.id,rawId:toB64u(c.rawId),type:c.type,response:{clientDataJSON:toB64u(p.clientDataJSON),authenticatorData:toB64u(p.authenticatorData),signature:toB64u(p.signature),userHandle:p.userHandle?toB64u(p.userHandle):undefined},clientExtensionResults:c.getClientExtensionResults(),authenticatorAttachment:c.authenticatorAttachment??undefined}})});if(!r.ok)throw new Error(await apiError(r,'기기 서명 확인 실패'));return r.json()}
+const noteEditor=note=>{const a=document.createElement('article');a.className='note';const g=document.createElement('div');g.className='note-grid';const tl=document.createElement('label');tl.textContent='제목';const t=document.createElement('input');t.maxLength=120;t.value=note.title;tl.append(t);const bl=document.createElement('label');bl.textContent='본문';const b=document.createElement('textarea');b.maxLength=2000;b.value=note.body;bl.append(b);const acts=document.createElement('div');acts.className='note-actions';const save=document.createElement('button');save.type='button';save.className='secondary';save.textContent='수정 저장';const del=document.createElement('button');del.type='button';del.className='danger';del.textContent='삭제';acts.append(save,del);g.append(tl,bl,acts);a.append(g);
+ save.onclick=async()=>{try{const r=await apiRequest(`/api/notes/${encodeURIComponent(note.id)}`,{method:'PUT',body:JSON.stringify({title:t.value,body:b.value})});if(!r.ok){setStatus(workspaceStatus,await apiError(r,'수정 실패'),true);if(r.status===403)await checkDevice();return}await loadNotes()}catch(e){setStatus(workspaceStatus,e.message,true)}};
+ del.onclick=async()=>{if(!confirm('이 가상 메모를 삭제할까요?'))return;try{const r=await apiRequest(`/api/notes/${encodeURIComponent(note.id)}`,{method:'DELETE'});if(!r.ok){setStatus(workspaceStatus,await apiError(r,'삭제 실패'),true);if(r.status===403)await checkDevice();return}await loadNotes()}catch(e){setStatus(workspaceStatus,e.message,true)}};return a};
+async function loadNotes(){if(workspace.hidden)return;try{const r=await apiRequest('/api/my/notes');if(!r.ok){setStatus(workspaceStatus,await apiError(r,'자료를 읽을 수 없습니다.'),true);notesRoot.replaceChildren();if(r.status===403)await checkDevice();return}const notes=await r.json();if(!Array.isArray(notes))throw new Error('자료 형식이 맞지 않습니다.');notesRoot.replaceChildren(...notes.map(noteEditor));setStatus(workspaceStatus,notes.length?'':'내 메모가 없습니다.')}catch(e){notesRoot.replaceChildren();setStatus(workspaceStatus,e.message,true)}}
+loginForm.onsubmit=async e=>{e.preventDefault();setStatus(loginStatus,'로그인 중…');const {error}=await signIn($('#email').value.trim(),$('#password').value);$('#password').value='';if(error)setStatus(loginStatus,error.message,true);else setStatus(loginStatus)};
+logoutButton.onclick=async()=>{await signOut();renderAuth(null)};
+deviceForm.onsubmit=async e=>{e.preventDefault();setStatus(deviceStatus,'패스키 등록 중…');try{const result=await requestApproval($('#device-label').value.trim());deviceForm.reset();setStatus(deviceStatus,`승인 요청 접수 · ${result.device?.label??'기기'} · 서버 승인 대기`)}catch(x){setStatus(deviceStatus,x.message,true)}await checkDevice()};
+$('#device-verify').onclick=async()=>{setStatus(deviceStatus,'패스키 서명 확인 중…');try{await proveDevice();setStatus(deviceStatus,'서버가 승인된 기기의 서명을 확인했습니다.')}catch(e){setStatus(deviceStatus,e.message,true)}await checkDevice()};
+$('#device-refresh').onclick=()=>void checkDevice();
+createForm.onsubmit=async e=>{e.preventDefault();try{const t=$('#new-title'),b=$('#new-body'),r=await apiRequest('/api/notes',{method:'POST',body:JSON.stringify({title:t.value,body:b.value})});if(!r.ok){setStatus(workspaceStatus,await apiError(r,'추가 실패'),true);if(r.status===403)await checkDevice();return}t.value='';b.value='';await loadNotes()}catch(x){setStatus(workspaceStatus,x.message,true)}};
+onAuthChange(session=>{renderAuth(session);if(session)void checkDevice()});const initial=await currentSession();if(initial.error)setStatus(loginStatus,initial.error.message,true);renderAuth(initial.session);if(initial.session)await checkDevice();

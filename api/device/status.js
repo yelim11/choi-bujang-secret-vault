@@ -1,0 +1,1 @@
+import{deviceStatus}from'../../src/device-approval.mjs';import{deviceContext}from'../../src/device-api.mjs';export default async function handler(req,res){const ctx=await deviceContext(req,res,'GET');if(!ctx)return;const r=await deviceStatus(ctx);return res.status(r.status).json(r.body);}

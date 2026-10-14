@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 import { parseResourceTarget, routeAllowed } from '../src/resource-policy.mjs';
+import { deviceGate } from '../src/device-session.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
@@ -74,6 +75,9 @@ export async function handleNotesRequest(request, response, current) {
     response.setHeader('WWW-Authenticate', 'Bearer');
     return response.status(401).json({ error: 'UNAUTHORIZED' });
   }
+
+  const deviceBlocked = await deviceGate(identity, current.supabase);
+  if (deviceBlocked) return response.status(deviceBlocked.status).json({ error: deviceBlocked.error });
 
   const target = parseResourceTarget(request, 'notes');
   if (target.invalid) return response.status(400).json({ error: 'INVALID_RESOURCE_PATH' });

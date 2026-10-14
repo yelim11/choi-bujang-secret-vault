@@ -1,0 +1,11 @@
+begin;
+create extension if not exists pgcrypto with schema extensions;
+create table if not exists public.devices(id uuid primary key default gen_random_uuid(),owner_id uuid not null,label text not null check(char_length(label) between 1 and 40),credential_id text not null unique,public_key text not null,sign_count bigint not null default 0 check(sign_count>=0),synced boolean not null default false,status text not null default 'pending' check(status in('pending','approved','revoked')),created_at timestamptz not null default now());
+create table if not exists public.device_sessions(session_id uuid primary key,owner_id uuid not null,challenge text,challenge_purpose text check(challenge_purpose is null or challenge_purpose in('register','verify')),challenge_expires_at timestamptz,device_id uuid references public.devices(id) on delete set null,verified_at timestamptz,expires_at timestamptz,updated_at timestamptz not null default now());
+create index if not exists devices_owner_created_idx on public.devices(owner_id,created_at);create index if not exists device_sessions_owner_idx on public.device_sessions(owner_id);
+alter table public.devices enable row level security;alter table public.device_sessions enable row level security;
+revoke all on table public.devices from public,anon,authenticated;revoke all on table public.device_sessions from public,anon,authenticated;
+grant select,insert,update,delete on table public.devices to service_role;grant select,insert,update,delete on table public.device_sessions to service_role;
+commit;
+-- 승인 요청을 검토한 뒤에만: update public.devices set status='approved' where id='<기기 UUID>' and status='pending';
+-- 회수: update public.devices set status='revoked' where id='<기기 UUID>';

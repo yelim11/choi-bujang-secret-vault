@@ -1,4 +1,4 @@
-// Step 5-10 self-check: only record requests actually sent to the deployed app.
+// Step 5-11 self-check: only record requests actually sent to the deployed app.
 const appUrl = config => {
   let app;
   try {
@@ -32,8 +32,8 @@ const deniedJson = async response => {
 };
 
 export async function runAttackChecks(config) {
-  if (![5, 6, 7, 8, 9, 10].includes(config.step)) {
-    throw new Error('5~10단계 공격 점검 설정을 확인해 주세요.');
+  if (![5, 6, 7, 8, 9, 10, 11].includes(config.step)) {
+    throw new Error('5~11단계 공격 점검 설정을 확인해 주세요.');
   }
 
   const app = appUrl(config);
@@ -66,7 +66,7 @@ export async function runAttackChecks(config) {
   const itemDenied = await deniedJson(itemResponse);
 
   const manifest = manifestResponse.ok ? await safeJson(manifestResponse) : null;
-  const manifestOpen = [5, 6, 7, 8, 9, 10].includes(manifest?.step)
+  const manifestOpen = [5, 6, 7, 8, 9, 10, 11].includes(manifest?.step)
     && typeof manifest?.commit === 'string'
     && manifest.commit.length === 40
     && Array.isArray(manifest?.allowedRoutes)
@@ -94,7 +94,7 @@ export async function runAttackChecks(config) {
     },
     {
       attackId: 'deployment_manifest_available',
-      expected: '배포 /aleph.json에 step 5~10, allowedRoutes, originalApiUrl이 있음',
+      expected: '배포 /aleph.json에 step 5~11, allowedRoutes, originalApiUrl이 있음',
       observed: manifestOpen
         ? '배포 /aleph.json에서 기존 단계와 허용 경로·원본 API 주소를 확인함'
         : `배포 manifest 확인 실패 (HTTP ${manifestResponse.status})`,
@@ -223,6 +223,27 @@ export async function runAttackChecks(config) {
       {attackId:'safe_policy_snapshot_verified',expected:'안전 정책 사본 해시 검증 후 실행 전 변경 범위 확인',observed:plan.ok?`사본 ${plan.version} 검증, 현재 차이 ${plan.changes.length}개`:`사본 검증 실패: ${plan.error}`},
       {attackId:'restore_b_note',expected:'B 메모 한 건만 ID·소유자·내용 해시가 사본과 같게 복구',observed:'미실행: B 로그인 쓰기 요청은 심판 가상 사건으로 확인. 로컬 restore:test 별도'},
       {attackId:'post_restore_retest',expected:'복구 뒤 1~9단계 정상 요청 유지·금지 요청 재거부',observed:'미실행: 로그인 계정이 필요한 전체 재시험은 README 순서대로 별도 실행'}
+    );
+  }
+
+  if (config.step >= 11) {
+    const [mr, ar] = await Promise.all([
+      fetch(new URL('/manifest.webmanifest', app), { redirect:'error', signal:AbortSignal.timeout(10000) }),
+      fetch(new URL('/auth-client.js', app), { redirect:'error', signal:AbortSignal.timeout(10000) }),
+    ]);
+    const m = mr.ok ? await safeJson(mr) : null;
+    const code = ar.ok ? await ar.text() : '';
+    const sizes = Array.isArray(m?.icons) ? m.icons.map(icon => icon?.sizes).filter(Boolean) : [];
+    const installReady = m?.display === 'standalone' && m?.start_url === '/' && sizes.includes('192x192') && sizes.includes('512x512');
+    const storage = /localStorage|sessionStorage|indexedDB|document\.cookie/u.test(code);
+    const anonymousDevice = await fetch(new URL('/api/device/status', app), { redirect:'error', signal:AbortSignal.timeout(10000), headers:{Accept:'application/json'} });
+    const forgedDevice = await fetch(new URL('/api/device/register', app), { method:'POST', redirect:'error', signal:AbortSignal.timeout(10000),
+      headers:{Accept:'application/json','Content-Type':'application/json',Authorization:'Bearer aaa.bbb.ccc'},
+      body:JSON.stringify({label:'fixture',status:'approved',credential:{}}) });
+    results.push(
+      {attackId:'installable_app_not_device_trust',expected:'manifest가 있어도 설치 표시만으로 승인하지 않음',observed:`manifest HTTP ${mr.status}, 설치 항목 ${installReady?'확인':'확인 실패'}, 아이콘 ${sizes.join('·')||'없음'}`},
+      {attackId:'browser_secret_storage_absent',expected:'로그인 토큰·기기 키를 브라우저 저장소에 두지 않음',observed:`auth-client.js HTTP ${ar.status}, 브라우저 저장소 API 사용 ${storage?'있음':'없음'}`},
+      {attackId:'device_approval_server_only',expected:'로그인 없는 상태 조회와 승인 위조 요청은 거부',observed:`GET /api/device/status → HTTP ${anonymousDevice.status}, 가짜 토큰 POST /api/device/register → HTTP ${forgedDevice.status}`},
     );
   }
 
