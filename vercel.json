@@ -11,6 +11,10 @@
     {
       "source": "/api/notices/:id",
       "destination": "/api/notices?id=:id"
+    },
+    {
+      "source": "/api/restore/notes/:id",
+      "destination": "/api/restore?id=:id"
     }
   ],
   "headers": [

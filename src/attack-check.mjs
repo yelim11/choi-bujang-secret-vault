@@ -1,4 +1,4 @@
-// Step 5-9 self-check: only record requests actually sent to the deployed app.
+// Step 5-10 self-check: only record requests actually sent to the deployed app.
 const appUrl = config => {
   let app;
   try {
@@ -32,8 +32,8 @@ const deniedJson = async response => {
 };
 
 export async function runAttackChecks(config) {
-  if (![5, 6, 7, 8, 9].includes(config.step)) {
-    throw new Error('5~9단계 공격 점검 설정을 확인해 주세요.');
+  if (![5, 6, 7, 8, 9, 10].includes(config.step)) {
+    throw new Error('5~10단계 공격 점검 설정을 확인해 주세요.');
   }
 
   const app = appUrl(config);
@@ -66,7 +66,7 @@ export async function runAttackChecks(config) {
   const itemDenied = await deniedJson(itemResponse);
 
   const manifest = manifestResponse.ok ? await safeJson(manifestResponse) : null;
-  const manifestOpen = [5, 6, 7, 8, 9].includes(manifest?.step)
+  const manifestOpen = [5, 6, 7, 8, 9, 10].includes(manifest?.step)
     && typeof manifest?.commit === 'string'
     && manifest.commit.length === 40
     && Array.isArray(manifest?.allowedRoutes)
@@ -94,7 +94,7 @@ export async function runAttackChecks(config) {
     },
     {
       attackId: 'deployment_manifest_available',
-      expected: '배포 /aleph.json에 step 5~9, allowedRoutes, originalApiUrl이 있음',
+      expected: '배포 /aleph.json에 step 5~10, allowedRoutes, originalApiUrl이 있음',
       observed: manifestOpen
         ? '배포 /aleph.json에서 기존 단계와 허용 경로·원본 API 주소를 확인함'
         : `배포 manifest 확인 실패 (HTTP ${manifestResponse.status})`,
@@ -164,7 +164,7 @@ export async function runAttackChecks(config) {
     );
   }
 
-  if (config.step === 9) {
+  if (config.step >= 9) {
     const { detect, proposeRevocation } = await import('./detect.mjs');
     const start = Date.UTC(2026, 9, 1, 0, 0, 0);
     const reads = (count, { deviceId = null, network = null, owner = 'learner_fixture' } = {}) =>
@@ -203,6 +203,19 @@ export async function runAttackChecks(config) {
         expected: '회수 뒤 신원·세션 재시도와 다른 자원 이동이 거부되고 경과 시간이 측정됨',
         observed: '미실행: 실제 회수와 경과 시간은 운영 반 엔진·심판의 가상 사건으로 확인',
       },
+    );
+  }
+
+  if (config.step >= 10) {
+    const restorePath=typeof config.restoreRoute==='string'?config.restoreRoute.split(' ')[1]?.replace(':id',testId):null;
+    let restoreStatus=0;if(restorePath){const rr=await fetch(new URL(restorePath,app),{redirect:'error',signal:AbortSignal.timeout(10000),headers:{Accept:'application/json'}});restoreStatus=rr.status;}
+    const {fileURLToPath}=await import('node:url');const {planRestore}=await import('./policy-restore.mjs');
+    const plan=planRestore({safePath:fileURLToPath(new URL('../policy/safe-policy.json',import.meta.url)),testPath:fileURLToPath(new URL('../policy/test-policy.json',import.meta.url))});
+    results.push(
+      {attackId:'anonymous_restore_denied',expected:'로그인 없는 복구 경로 호출은 거부',observed:[401,403].includes(restoreStatus)?`비로그인 복구 HTTP ${restoreStatus} 거부 확인`:`복구 거부 확인 실패 (HTTP ${restoreStatus||'미호출'})`},
+      {attackId:'safe_policy_snapshot_verified',expected:'안전 정책 사본 해시 검증 후 실행 전 변경 범위 확인',observed:plan.ok?`사본 ${plan.version} 검증, 현재 차이 ${plan.changes.length}개`:`사본 검증 실패: ${plan.error}`},
+      {attackId:'restore_b_note',expected:'B 메모 한 건만 ID·소유자·내용 해시가 사본과 같게 복구',observed:'미실행: B 로그인 쓰기 요청은 심판 가상 사건으로 확인. 로컬 restore:test 별도'},
+      {attackId:'post_restore_retest',expected:'복구 뒤 1~9단계 정상 요청 유지·금지 요청 재거부',observed:'미실행: 로그인 계정이 필요한 전체 재시험은 README 순서대로 별도 실행'}
     );
   }
 

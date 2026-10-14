@@ -5,7 +5,7 @@ import { deploymentIdentity } from './deployment-identity.mjs';
 const root = resolve(import.meta.dirname, '..');
 const config = JSON.parse(await readFile(resolve(root, 'aleph.config.json'), 'utf8'));
 
-if (![2, 3, 4, 5, 6, 7, 8, 9].includes(config.step)) {
+if (![2, 3, 4, 5, 6, 7, 8, 9, 10].includes(config.step)) {
   throw new Error('현재 저장점 설정과 배포 식별 단계가 맞지 않습니다.');
 }
 
@@ -23,6 +23,7 @@ if (!process.argv.includes('--local')) {
     identity.allowedRoutes = Array.isArray(config.allowedRoutes) ? [...config.allowedRoutes] : [];
     identity.originalApiUrl = config.originalApiUrl;
   }
+  if (config.step >= 10) identity.restoreRoute = config.restoreRoute;
   await writeFile(
     resolve(root, 'public', 'aleph.json'),
     `${JSON.stringify(identity, null, 2)}\n`,

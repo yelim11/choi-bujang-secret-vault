@@ -1,0 +1,83 @@
+{
+  "schema": "aleph.test-policy.v1",
+  "note": "시험 정책 작업 사본",
+  "rules": [
+    {
+      "id": "device_registered",
+      "layer": "decider",
+      "effect": "deny",
+      "target": "deviceRegistered가 true가 아닌 요청",
+      "reasonCode": "device_not_registered"
+    },
+    {
+      "id": "step_up_required",
+      "layer": "decider",
+      "effect": "step_up",
+      "target": "읽기 요청에서 검증된 복합 이상 신호",
+      "reasonCode": "step_up_required"
+    },
+    {
+      "id": "resource_zone",
+      "layer": "decider",
+      "effect": "allow_only",
+      "service": [
+        "notes",
+        "notices"
+      ],
+      "allow": [
+        "GET /notes/:id",
+        "PUT /notes/:id",
+        "DELETE /notes/:id",
+        "GET /notices",
+        "GET /notices/:id"
+      ],
+      "deny": [
+        "GET /notes",
+        "POST /notes",
+        "공지 쓰기",
+        "강사 자료",
+        "알 수 없는 경로",
+        "쿼리 기능"
+      ],
+      "reasonCode": "route_not_allowed"
+    },
+    {
+      "id": "api.notes.owner_only",
+      "layer": "api",
+      "effect": "deny",
+      "target": "검증된 사용자와 저장된 owner_id가 다른 메모 조회·수정·삭제·복구",
+      "status": 404
+    },
+    {
+      "id": "api.notices.instructor_server_only",
+      "layer": "api",
+      "effect": "deny",
+      "target": "공지 쓰기는 서버가 검증한 app_metadata 강사 권한과 저장된 소유자를 확인",
+      "status": 403
+    },
+    {
+      "id": "db.notes.direct_access_revoked",
+      "layer": "database",
+      "effect": "deny",
+      "target": "anon·authenticated의 notes 직접 Data API 접근",
+      "source": "supabase/step5_revoke_direct_access.sql"
+    },
+    {
+      "id": "detector.burst_read",
+      "layer": "detector",
+      "effect": "propose_revocation",
+      "target": "10분 안 120건 초과 GET과 제공된 경우 unusual 네트워크가 함께인 가상 사건",
+      "reasonCode": "burst_read"
+    }
+  ],
+  "otherServices": {
+    "xdr": {
+      "source": "xdr/",
+      "note": "복원 대상 아님"
+    },
+    "recovery": {
+      "note": "백업·감사 보존"
+    }
+  },
+  "audit": []
+}
