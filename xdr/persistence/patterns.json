@@ -1,0 +1,110 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "persistence",
+  "technique": [
+    "T1543",
+    "T1053"
+  ],
+  "thresholds": {
+    "block": 0.85,
+    "alert": 0.5
+  },
+  "ruleTtlMinutes": 15,
+  "patterns": [
+    {
+      "id": "high-severity",
+      "name": "높은 위험도의 지속성 경보",
+      "when": {
+        "minLevel": 10
+      },
+      "evidence": "Wazuh 위험도 10 이상의 서비스·예약 작업·시작 폴더 경보는 명확한 지속성 확보 시도로 봅니다.",
+      "confidence": 0.9
+    },
+    {
+      "id": "unsigned-service",
+      "name": "서명 없는 서비스 등록·변경",
+      "when": {
+        "textAny": [
+          "서명 없는",
+          "서명이 없습니다"
+        ]
+      },
+      "evidence": "서명 없는 서비스가 새로 등록되거나 실행 파일이 바뀌면 다시 켜도 살아남으려는 시스템 프로세스 변경(T1543)의 전형입니다.",
+      "confidence": 0.95
+    },
+    {
+      "id": "unfamiliar-scheduled-task",
+      "name": "낯선 예약 작업",
+      "when": {
+        "textAny": [
+          "처음 보는 예약 작업",
+          "예약 작업 이름이 임의 문자열"
+        ]
+      },
+      "evidence": "처음 보는 예약 작업이나 이름이 임의 문자열인 예약 작업은 정해진 때마다 다시 실행되도록 심는 예약 작업(T1053)의 전형입니다.",
+      "confidence": 0.93
+    },
+    {
+      "id": "startup-folder-addition",
+      "name": "시작 폴더 변경",
+      "when": {
+        "textAny": [
+          "시작 폴더에 평소 목록에 없는",
+          "시작 프로그램과 예약 작업이 같은"
+        ]
+      },
+      "evidence": "시작 폴더에 평소 목록에 없는 프로그램이 추가되거나 시작 프로그램과 예약 작업이 같은 파일을 가리키면 재시작 때 자동 실행을 노린 것입니다.",
+      "confidence": 0.93
+    },
+    {
+      "id": "survives-reboot",
+      "name": "다시 켜도 남도록 등록된 새 서비스",
+      "when": {
+        "textAny": [
+          "다시 켜도 남도록"
+        ]
+      },
+      "evidence": "평소 목록에 없는 서비스가 다시 켜도 남도록 등록되면 지속성 확보가 목적입니다.",
+      "confidence": 0.93
+    },
+    {
+      "id": "temp-executable",
+      "name": "임시 폴더의 실행 파일",
+      "when": {
+        "pathIn": "temp"
+      },
+      "evidence": "임시 폴더에 있는 실행 파일은 흔한 은닉 위치지만 그것만으로는 지속성 확보라고 단정하기 어렵습니다.",
+      "confidence": 0.6
+    },
+    {
+      "id": "startup-path",
+      "name": "시작 폴더 경로의 파일",
+      "when": {
+        "pathIn": "startup"
+      },
+      "evidence": "시작 폴더 경로의 파일은 로그인 때마다 실행되므로 사람이 확인합니다.",
+      "confidence": 0.7
+    },
+    {
+      "id": "signature-unconfirmed",
+      "name": "서명을 아직 확인하지 못한 항목",
+      "when": {
+        "textAny": [
+          "서명은 확인되지 않았습니다",
+          "서명은 아직 모릅니다"
+        ]
+      },
+      "evidence": "서명이 없다고 확인된 것이 아니라 아직 확인하지 못한 항목은 공격이라 단정하기 어려워 사람이 확인합니다.",
+      "confidence": 0.55
+    },
+    {
+      "id": "mid-severity",
+      "name": "중간 위험도 경보",
+      "when": {
+        "minLevel": 5
+      },
+      "evidence": "위험도 5~9 경보는 지속성 확보라 단정하기 어려워 사람이 확인합니다.",
+      "confidence": 0.55
+    }
+  ]
+}

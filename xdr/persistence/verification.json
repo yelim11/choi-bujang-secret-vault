@@ -1,0 +1,8 @@
+{
+  "schema": "aleph.xdr.verification.v1",
+  "moduleKey": "persistence",
+  "alertsRead": 24,
+  "blockCandidates": 7,
+  "normalEventsBlocked": 0,
+  "baseDeciderModified": false
+}

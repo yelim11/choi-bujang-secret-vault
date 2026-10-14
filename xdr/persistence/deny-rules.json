@@ -1,0 +1,85 @@
+{
+  "schema": "aleph.xdr.ztna-deny-rules.v1",
+  "moduleKey": "persistence",
+  "note": "고확신도 지속성 차단 후보만 연결하며 기존 판정기 규칙은 수정하지 않습니다.",
+  "rules": [
+    {
+      "ruleId": "xdr.persistence.deny-203-0-113-12",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.12"
+      },
+      "expiresAt": "2026-09-27T00:34:12.000Z",
+      "evidenceAlertIds": [
+        "ps-01",
+        "ps-02"
+      ]
+    },
+    {
+      "ruleId": "xdr.persistence.deny-198-51-100-12",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "198.51.100.12"
+      },
+      "expiresAt": "2026-09-27T01:21:28.000Z",
+      "evidenceAlertIds": [
+        "ps-03"
+      ]
+    },
+    {
+      "ruleId": "xdr.persistence.deny-192-0-2-12",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "192.0.2.12"
+      },
+      "expiresAt": "2026-09-27T01:37:03.000Z",
+      "evidenceAlertIds": [
+        "ps-04"
+      ]
+    },
+    {
+      "ruleId": "xdr.persistence.deny-203-0-113-19",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.19"
+      },
+      "expiresAt": "2026-09-27T02:24:17.000Z",
+      "evidenceAlertIds": [
+        "ps-05"
+      ]
+    },
+    {
+      "ruleId": "xdr.persistence.deny-198-51-100-19",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "198.51.100.19"
+      },
+      "expiresAt": "2026-09-27T04:22:45.000Z",
+      "evidenceAlertIds": [
+        "ps-06"
+      ]
+    },
+    {
+      "ruleId": "xdr.persistence.deny-192-0-2-19",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "192.0.2.19"
+      },
+      "expiresAt": "2026-09-27T05:29:08.000Z",
+      "evidenceAlertIds": [
+        "ps-07"
+      ]
+    },
+    {
+      "ruleId": "xdr.persistence.deny-203-0-113-33",
+      "action": "deny",
+      "match": {
+        "sourceAddress": "203.0.113.33"
+      },
+      "expiresAt": "2026-09-27T06:43:31.000Z",
+      "evidenceAlertIds": [
+        "ps-08"
+      ]
+    }
+  ]
+}

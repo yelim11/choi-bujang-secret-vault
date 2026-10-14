@@ -57,3 +57,19 @@ npm run xdr:run -- known-cve
 ```
   
 시험 fixture 24건 결과: `block 8 / alert 8 / record 8`, 정상 이벤트 block 0건입니다.
+
+## persistence
+
+`xdr/fixtures/persistence.json`의 24개 가상 Wazuh 경보를 MITRE ATT&CK T1543·T1053 근거로 판정합니다.
+
+- 서명 없는 새 서비스·낯선 예약 작업·시작 폴더의 미등록 프로그램처럼 명확한 지속성 징후: `block`
+- 서명 미확인, 서비스 설명 변경, 단독 임시 파일 등 증거가 부족한 변경: `alert`
+- 기존 서명 서비스·정상 예약 작업·목록 읽기·로그인 등 정상 이벤트: `record`
+
+`decide.mjs`는 다른 파일이나 패키지를 import하지 않는 standalone 판단기입니다. `respond.mjs`는 고확신도 block만 `deny-rules.json`으로 연결하고 기존 `src/decider.mjs`는 수정하지 않습니다.
+
+```bash
+npm run xdr:run -- persistence
+```
+
+fixture 24건 결과: `block 8 / alert 8 / record 8`, 정상 이벤트 block 0건.

@@ -295,3 +295,21 @@ npm run xdr:run -- known-cve
 정상 이벤트가 차단 후보의 출발 주소와 겹치면 해당 주소는 거부 규칙에서 제외합니다. 이 결과는 수업용 fixture 자기점검이며 실제 운영 차단이나 ALEPH 심판 판정을 뜻하지 않습니다.
   
 시험 fixture 24건 결과: `block 8 / alert 8 / record 8`, 정상 이벤트 block 0건입니다.
+
+## 보너스 XDR · 몰래 심어진 프로그램
+
+기존 `src/decider.mjs` 규칙은 수정하지 않고 `xdr/persistence` 부품을 추가했습니다.
+
+- `read-alerts.mjs`: Wazuh 모양 fixture에서 시각·출발 주소·계정·규칙 수준·설명만 추출하며 비밀값처럼 보이는 문자열은 가립니다.
+- `patterns.json`: MITRE ATT&CK T1543·T1053에 근거해 서명 없는 서비스, 낯선 예약 작업, 시작 폴더 변경과 애매한 지속성 신호를 구분합니다.
+- `decide.mjs`: import·파일 I/O·네트워크 없이 단독 계산하며 명확한 지속성 확보는 block, 애매한 변경은 alert, 정상 활동은 record입니다.
+- `respond.mjs`: 고확신도 block만 만료 시각·근거 경보 번호가 있는 `deny-rules.json`으로 연결하고 block/alert만 `xdr/alerts.log`에 기록합니다. record가 나온 출발 주소와 겹치면 차단 후보에서 제외합니다.
+- 공용 `xdr-run.mjs`가 호출하는 `bridge.mjs`는 `respond.mjs`에 결과를 넘기는 얇은 어댑터이며 기존 판정기 규칙은 변경하지 않습니다.
+
+재실행:
+
+```bash
+npm run xdr:run -- persistence
+```
+
+시험 fixture 24건 재생 결과는 `block 8 / alert 8 / record 8`, 정상 이벤트 block 0건입니다. 이 결과는 수업용 fixture 자기점검이며 운영 심판 판정을 뜻하지 않습니다.

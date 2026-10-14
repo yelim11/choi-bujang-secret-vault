@@ -1,0 +1,155 @@
+{
+  "schema": "aleph.xdr.result.v1",
+  "moduleKey": "persistence",
+  "decisions": [
+    {
+      "alertId": "ps-01",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "서명 없는 서비스 등록·변경"
+    },
+    {
+      "alertId": "ps-02",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "낯선 예약 작업"
+    },
+    {
+      "alertId": "ps-03",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "시작 폴더 변경"
+    },
+    {
+      "alertId": "ps-04",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "서명 없는 서비스 등록·변경"
+    },
+    {
+      "alertId": "ps-05",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "낯선 예약 작업"
+    },
+    {
+      "alertId": "ps-06",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "서명 없는 서비스 등록·변경"
+    },
+    {
+      "alertId": "ps-07",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "시작 폴더 변경"
+    },
+    {
+      "alertId": "ps-08",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "다시 켜도 남도록 등록된 새 서비스"
+    },
+    {
+      "alertId": "ps-09",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "서명을 아직 확인하지 못한 항목"
+    },
+    {
+      "alertId": "ps-10",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "서명을 아직 확인하지 못한 항목"
+    },
+    {
+      "alertId": "ps-11",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "중간 위험도 경보"
+    },
+    {
+      "alertId": "ps-12",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "중간 위험도 경보"
+    },
+    {
+      "alertId": "ps-13",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "임시 폴더의 실행 파일"
+    },
+    {
+      "alertId": "ps-14",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "중간 위험도 경보"
+    },
+    {
+      "alertId": "ps-15",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "중간 위험도 경보"
+    },
+    {
+      "alertId": "ps-16",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "중간 위험도 경보"
+    },
+    {
+      "alertId": "ps-17",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "위험도가 낮고 지속성 확보 형태 없음"
+    },
+    {
+      "alertId": "ps-18",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "위험도가 낮고 지속성 확보 형태 없음"
+    },
+    {
+      "alertId": "ps-19",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "위험도가 낮고 지속성 확보 형태 없음"
+    },
+    {
+      "alertId": "ps-20",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "위험도가 낮고 지속성 확보 형태 없음"
+    },
+    {
+      "alertId": "ps-21",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "위험도가 낮고 지속성 확보 형태 없음"
+    },
+    {
+      "alertId": "ps-22",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "위험도가 낮고 지속성 확보 형태 없음"
+    },
+    {
+      "alertId": "ps-23",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "위험도가 낮고 지속성 확보 형태 없음"
+    },
+    {
+      "alertId": "ps-24",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "위험도가 낮고 지속성 확보 형태 없음"
+    }
+  ],
+  "counts": {
+    "block": 8,
+    "alert": 8,
+    "record": 8
+  }
+}

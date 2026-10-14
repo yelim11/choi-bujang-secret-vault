@@ -50,3 +50,19 @@
 {"moduleKey":"known-cve","alertId":"kc-14","action":"alert","confidence":0.55,"timestamp":"2026-09-27T12:09:04+09:00","sourceAddress":"203.0.113.46","account":"","reason":"known-cve-probe-trace"}
 {"moduleKey":"known-cve","alertId":"kc-15","action":"alert","confidence":0.55,"timestamp":"2026-09-27T13:22:13+09:00","sourceAddress":"192.0.2.47","account":"","reason":"known-cve-probe-trace"}
 {"moduleKey":"known-cve","alertId":"kc-16","action":"alert","confidence":0.55,"timestamp":"2026-09-27T14:11:36+09:00","sourceAddress":"198.51.100.47","account":"","reason":"known-cve-probe-trace"}
+{"moduleKey":"persistence","alertId":"ps-01","action":"block","confidence":0.95,"timestamp":"2026-09-27T09:18:04+09:00","sourceAddress":"203.0.113.12","account":"user01","reason":"서명 없는 서비스 등록·변경"}
+{"moduleKey":"persistence","alertId":"ps-02","action":"block","confidence":0.93,"timestamp":"2026-09-27T09:19:12+09:00","sourceAddress":"203.0.113.12","account":"user01","reason":"낯선 예약 작업"}
+{"moduleKey":"persistence","alertId":"ps-03","action":"block","confidence":0.93,"timestamp":"2026-09-27T10:06:28+09:00","sourceAddress":"198.51.100.12","account":"user02","reason":"시작 폴더 변경"}
+{"moduleKey":"persistence","alertId":"ps-04","action":"block","confidence":0.95,"timestamp":"2026-09-27T10:22:03+09:00","sourceAddress":"192.0.2.12","account":"user03","reason":"서명 없는 서비스 등록·변경"}
+{"moduleKey":"persistence","alertId":"ps-05","action":"block","confidence":0.93,"timestamp":"2026-09-27T11:09:17+09:00","sourceAddress":"203.0.113.19","account":"user04","reason":"낯선 예약 작업"}
+{"moduleKey":"persistence","alertId":"ps-06","action":"block","confidence":0.95,"timestamp":"2026-09-27T13:07:45+09:00","sourceAddress":"198.51.100.19","account":"user05","reason":"서명 없는 서비스 등록·변경"}
+{"moduleKey":"persistence","alertId":"ps-07","action":"block","confidence":0.93,"timestamp":"2026-09-27T14:14:08+09:00","sourceAddress":"192.0.2.19","account":"user06","reason":"시작 폴더 변경"}
+{"moduleKey":"persistence","alertId":"ps-08","action":"block","confidence":0.93,"timestamp":"2026-09-27T15:28:31+09:00","sourceAddress":"203.0.113.33","account":"user07","reason":"다시 켜도 남도록 등록된 새 서비스"}
+{"moduleKey":"persistence","alertId":"ps-09","action":"alert","confidence":0.55,"timestamp":"2026-09-27T09:27:16+09:00","sourceAddress":"192.0.2.48","account":"user01","reason":"서명을 아직 확인하지 못한 항목"}
+{"moduleKey":"persistence","alertId":"ps-10","action":"alert","confidence":0.55,"timestamp":"2026-09-27T10:15:22+09:00","sourceAddress":"198.51.100.48","account":"user02","reason":"서명을 아직 확인하지 못한 항목"}
+{"moduleKey":"persistence","alertId":"ps-11","action":"alert","confidence":0.55,"timestamp":"2026-09-27T10:49:05+09:00","sourceAddress":"203.0.113.48","account":"user03","reason":"중간 위험도 경보"}
+{"moduleKey":"persistence","alertId":"ps-12","action":"alert","confidence":0.55,"timestamp":"2026-09-27T11:23:38+09:00","sourceAddress":"192.0.2.49","account":"user04","reason":"중간 위험도 경보"}
+{"moduleKey":"persistence","alertId":"ps-13","action":"alert","confidence":0.6,"timestamp":"2026-09-27T12:11:09+09:00","sourceAddress":"198.51.100.49","account":"user05","reason":"임시 폴더의 실행 파일"}
+{"moduleKey":"persistence","alertId":"ps-14","action":"alert","confidence":0.55,"timestamp":"2026-09-27T13:19:27+09:00","sourceAddress":"203.0.113.49","account":"user06","reason":"중간 위험도 경보"}
+{"moduleKey":"persistence","alertId":"ps-15","action":"alert","confidence":0.55,"timestamp":"2026-09-27T14:08:14+09:00","sourceAddress":"192.0.2.53","account":"user07","reason":"중간 위험도 경보"}
+{"moduleKey":"persistence","alertId":"ps-16","action":"alert","confidence":0.55,"timestamp":"2026-09-27T15:16:42+09:00","sourceAddress":"198.51.100.53","account":"svc-lab","reason":"중간 위험도 경보"}
