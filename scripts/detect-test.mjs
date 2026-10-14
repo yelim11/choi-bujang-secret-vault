@@ -5,10 +5,14 @@ import { isDeepStrictEqual } from 'node:util';
 const START = Date.UTC(2026, 9, 1, 0, 0, 0);
 const subject = 'learner_fixture';
 
-function reads(count, { intervalSeconds = 2, owner = subject, start = START } = {}) {
+function reads(count, { intervalSeconds = 2, owner = subject, start = START,
+  deviceId = null, network = null, decision = null } = {}) {
   return Array.from({ length: count }, (_, index) => ({
     at: new Date(start + index * intervalSeconds * 1000).toISOString(),
     method: 'GET', identity: { sub: owner },
+    ...(deviceId ? { deviceId } : {}),
+    ...(network ? { signals: { network } } : {}),
+    ...(decision ? { decision } : {}),
   }));
 }
 
@@ -26,7 +30,6 @@ const cases = [
     { intervalSeconds: 7 }), expected: { action: 'observe' } },
 ];
 
-// This is a practice contract, not a live engine assertion or judge score.
 export async function checkDetection(detect) {
   if (typeof detect !== 'function') throw new TypeError('src/detect.mjs에서 detect 함수를 내보내야 합니다.');
   const results = [];
@@ -38,10 +41,39 @@ export async function checkDetection(detect) {
   return results;
 }
 
+export async function checkCompositeDetection({ detect, proposeRevocation, readDetectionEvents }) {
+  const device = 'aaaaaaaaaaaaaaaa';
+  const results = [];
+  const add = (name, passed) => results.push({ name, passed: Boolean(passed) });
+
+  add('평소 네트워크의 121건은 정상 유지', isDeepStrictEqual(
+    await detect(reads(121, { deviceId: device, network: 'usual', decision: 'allow' })),
+    { action: 'observe' },
+  ));
+  add('낯선 네트워크와 121건이 겹치면 기기 회수 제안', isDeepStrictEqual(
+    await detect(reads(121, { deviceId: device, network: 'unusual', decision: 'allow' })),
+    { action: 'propose_revocation', reasonCode: 'burst_read', subject, deviceId: device },
+  ));
+  add('확인된 기기 하나만 별도 회수 대상으로 제안', isDeepStrictEqual(
+    await proposeRevocation(reads(121, { deviceId: device, network: 'unusual' })),
+    { action: 'propose_revocation', reasonCode: 'burst_read', subject, deviceId: device },
+  ));
+  const safe = readDetectionEvents([{ at: new Date(START).toISOString(), method: 'GET',
+    identity: { sub: subject }, deviceId: device, decision: 'allow',
+    signals: { network: 'unusual', region: 'foreign' }, token: 'do-not-copy', body: 'do-not-copy' }]);
+  add('입력 정리 결과에 토큰·본문·지역을 보존하지 않음', safe.events.length === 1
+    && !Object.hasOwn(safe.events[0], 'token') && !Object.hasOwn(safe.events[0], 'body')
+    && !Object.hasOwn(safe.events[0], 'region'));
+  return results;
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const { detect } = await import('../src/detect.mjs');
-    const results = await checkDetection(detect);
+    const module = await import('../src/detect.mjs');
+    const results = [
+      ...await checkDetection(module.detect),
+      ...await checkCompositeDetection(module),
+    ];
     for (const item of results) process.stdout.write(`${item.passed ? '통과' : '확인 필요'} · ${item.name}\n`);
     process.stdout.write('가상 사건 연습이며 실제 접속 회수나 심판 통과 증거가 아닙니다.\n');
     if (results.some(item => !item.passed)) process.exitCode = 1;

@@ -1,4 +1,4 @@
-// Step 5-8 self-check: only record requests actually sent to the deployed app.
+// Step 5-9 self-check: only record requests actually sent to the deployed app.
 const appUrl = config => {
   let app;
   try {
@@ -32,8 +32,8 @@ const deniedJson = async response => {
 };
 
 export async function runAttackChecks(config) {
-  if (![5, 6, 7, 8].includes(config.step)) {
-    throw new Error('5~8단계 공격 점검 설정을 확인해 주세요.');
+  if (![5, 6, 7, 8, 9].includes(config.step)) {
+    throw new Error('5~9단계 공격 점검 설정을 확인해 주세요.');
   }
 
   const app = appUrl(config);
@@ -66,7 +66,7 @@ export async function runAttackChecks(config) {
   const itemDenied = await deniedJson(itemResponse);
 
   const manifest = manifestResponse.ok ? await safeJson(manifestResponse) : null;
-  const manifestOpen = [5, 6, 7, 8].includes(manifest?.step)
+  const manifestOpen = [5, 6, 7, 8, 9].includes(manifest?.step)
     && typeof manifest?.commit === 'string'
     && manifest.commit.length === 40
     && Array.isArray(manifest?.allowedRoutes)
@@ -94,7 +94,7 @@ export async function runAttackChecks(config) {
     },
     {
       attackId: 'deployment_manifest_available',
-      expected: '배포 /aleph.json에 step 5~8, allowedRoutes, originalApiUrl이 있음',
+      expected: '배포 /aleph.json에 step 5~9, allowedRoutes, originalApiUrl이 있음',
       observed: manifestOpen
         ? '배포 /aleph.json에서 기존 단계와 허용 경로·원본 API 주소를 확인함'
         : `배포 manifest 확인 실패 (HTTP ${manifestResponse.status})`,
@@ -107,7 +107,7 @@ export async function runAttackChecks(config) {
         : `첫 화면 보안 헤더 확인 실패 (HTTP ${rootResponse.status})`,
     },
   ];
-  if (config.step === 8) {
+  if (config.step >= 8) {
     const routes = manifest?.allowedRoutes;
     const hasZone = (service, method, pathPattern, zone) =>
       Array.isArray(routes) && routes.some(entry => entry?.service === service
@@ -163,5 +163,48 @@ export async function runAttackChecks(config) {
       },
     );
   }
+
+  if (config.step === 9) {
+    const { detect, proposeRevocation } = await import('./detect.mjs');
+    const start = Date.UTC(2026, 9, 1, 0, 0, 0);
+    const reads = (count, { deviceId = null, network = null, owner = 'learner_fixture' } = {}) =>
+      Array.from({ length: count }, (_, index) => ({
+        at: new Date(start + index * 2000).toISOString(),
+        method: 'GET',
+        identity: { sub: owner },
+        ...(deviceId ? { deviceId } : {}),
+        ...(network ? { signals: { network } } : {}),
+        decision: 'allow',
+      }));
+    const deviceId = 'aaaaaaaaaaaaaaaa';
+    const legacyBurst = detect(reads(121));
+    const usualBurst = detect(reads(121, { deviceId, network: 'usual' }));
+    const compositeBurst = detect(reads(121, { deviceId, network: 'unusual' }));
+    const deviceProposal = proposeRevocation(reads(121, { deviceId, network: 'unusual' }));
+
+    results.push(
+      {
+        attackId: 'detector_contract_burst',
+        expected: '공식 연습 계약의 같은 가명 사용자 GET 121건은 propose_revocation·burst_read 제안',
+        observed: `로컬 탐지기 결과: ${JSON.stringify(legacyBurst)} (실제 회수 아님)`,
+      },
+      {
+        attackId: 'detector_composite_network',
+        expected: '네트워크 정보가 있으면 평소 네트워크 폭주는 observe, 낯선 네트워크+폭주만 회수 제안',
+        observed: `평소 ${JSON.stringify(usualBurst)} / 낯선 네트워크 ${JSON.stringify(compositeBurst)}`,
+      },
+      {
+        attackId: 'detector_single_device_proposal',
+        expected: '확인된 가상 기기 한 개에만 별도 회수 제안, 정상 기기 권한은 직접 변경하지 않음',
+        observed: `로컬 별도 제안: ${JSON.stringify(deviceProposal)} (회수 API·권한 변경 없음)`,
+      },
+      {
+        attackId: 'live_revocation',
+        expected: '회수 뒤 신원·세션 재시도와 다른 자원 이동이 거부되고 경과 시간이 측정됨',
+        observed: '미실행: 실제 회수와 경과 시간은 운영 반 엔진·심판의 가상 사건으로 확인',
+      },
+    );
+  }
+
   return results;
 }
