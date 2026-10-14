@@ -15,7 +15,9 @@
     "policy:restore": "node scripts/policy.mjs restore",
     "policy:test": "node scripts/policy-test.mjs",
     "restore:test": "node scripts/restore-test.mjs",
-    "test:11": "node --test test/stage11.test.mjs"
+    "test:11": "node --test test/stage11.test.mjs",
+    "test:12": "node --test test/stage12.test.mjs",
+    "recon:table": "node scripts/recon-table.mjs"
   },
   "engines": {
     "node": ">=22"

@@ -1,4 +1,4 @@
-// Step 5-11 self-check: only record requests actually sent to the deployed app.
+// Step 5-12 self-check: only record requests actually sent to the deployed app.
 const appUrl = config => {
   let app;
   try {
@@ -32,8 +32,8 @@ const deniedJson = async response => {
 };
 
 export async function runAttackChecks(config) {
-  if (![5, 6, 7, 8, 9, 10, 11].includes(config.step)) {
-    throw new Error('5~11단계 공격 점검 설정을 확인해 주세요.');
+  if (![5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) {
+    throw new Error('5~12단계 공격 점검 설정을 확인해 주세요.');
   }
 
   const app = appUrl(config);
@@ -66,7 +66,7 @@ export async function runAttackChecks(config) {
   const itemDenied = await deniedJson(itemResponse);
 
   const manifest = manifestResponse.ok ? await safeJson(manifestResponse) : null;
-  const manifestOpen = [5, 6, 7, 8, 9, 10, 11].includes(manifest?.step)
+  const manifestOpen = [5, 6, 7, 8, 9, 10, 11, 12].includes(manifest?.step)
     && typeof manifest?.commit === 'string'
     && manifest.commit.length === 40
     && Array.isArray(manifest?.allowedRoutes)
@@ -244,6 +244,30 @@ export async function runAttackChecks(config) {
       {attackId:'installable_app_not_device_trust',expected:'manifest가 있어도 설치 표시만으로 승인하지 않음',observed:`manifest HTTP ${mr.status}, 설치 항목 ${installReady?'확인':'확인 실패'}, 아이콘 ${sizes.join('·')||'없음'}`},
       {attackId:'browser_secret_storage_absent',expected:'로그인 토큰·기기 키를 브라우저 저장소에 두지 않음',observed:`auth-client.js HTTP ${ar.status}, 브라우저 저장소 API 사용 ${storage?'있음':'없음'}`},
       {attackId:'device_approval_server_only',expected:'로그인 없는 상태 조회와 승인 위조 요청은 거부',observed:`GET /api/device/status → HTTP ${anonymousDevice.status}, 가짜 토큰 POST /api/device/register → HTTP ${forgedDevice.status}`},
+    );
+  }
+
+  if (config.step >= 12) {
+    const response = await fetch(new URL('/api/war-room', app), {
+      redirect: 'error',
+      signal: AbortSignal.timeout(10000),
+      headers: { Accept: 'application/json' },
+    });
+    const denied = await deniedJson(response);
+    const resource = response.headers.get('x-resource-id');
+    results.push(
+      {
+        attackId: 'war_room_unauthenticated_denied',
+        expected: '탈환 작전실은 무인증 요청을 자료 없이 401/403으로 거부하고 warroom.own 자원 ID를 사용',
+        observed: denied && resource === 'warroom.own'
+          ? `무인증 /api/war-room HTTP ${response.status} 거부 · X-Resource-Id warroom.own`
+          : `작전실 무인증 거부 확인 실패 (HTTP ${response.status}, resource ${resource ?? '없음'})`,
+      },
+      {
+        attackId: 'total_assault_41_not_fabricated',
+        expected: '41종 총공세는 심판의 실제 실행 결과가 나오기 전에는 통과로 기록하지 않음',
+        observed: '미실행: 41종 총공세는 ALEPH 심판이 제출 뒤 실행하며 학생 자기점검은 임의로 통과 처리하지 않음',
+      },
     );
   }
 
