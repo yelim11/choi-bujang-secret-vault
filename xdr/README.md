@@ -73,3 +73,19 @@ npm run xdr:run -- persistence
 ```
 
 fixture 24건 결과: `block 8 / alert 8 / record 8`, 정상 이벤트 block 0건.
+
+## privilege
+
+`xdr/fixtures/privilege.json`의 26개 가상 Wazuh 경보를 MITRE ATT&CK T1068·T1078 근거로 판정합니다.
+
+- 관리자 그룹 추가·방금 상승한 관리자 활동·업무 시간 밖/낯선 주소의 관리자 사용·다른 계정 권한 사용: `block`
+- 취소된 상승, 단발 관리자 명령, 비관리 그룹 변경 등 근거가 부족한 이벤트: `alert`
+- 정상 로그인·로그아웃·그룹 조회·정상 관리 계정 사용: `record`
+
+`decide.mjs`는 standalone 판단기이며 `respond.mjs`는 고확신도 block만 계정+출발 주소 세션 단위로 `deny-rules.json`에 연결합니다. 기존 `src/decider.mjs`는 수정하지 않습니다.
+
+```bash
+npm run xdr:run -- privilege
+```
+
+fixture 26건 결과: `block 9 / alert 8 / record 9`, 정상 이벤트 block 0건.

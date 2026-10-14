@@ -66,3 +66,20 @@
 {"moduleKey":"persistence","alertId":"ps-14","action":"alert","confidence":0.55,"timestamp":"2026-09-27T13:19:27+09:00","sourceAddress":"203.0.113.49","account":"user06","reason":"중간 위험도 경보"}
 {"moduleKey":"persistence","alertId":"ps-15","action":"alert","confidence":0.55,"timestamp":"2026-09-27T14:08:14+09:00","sourceAddress":"192.0.2.53","account":"user07","reason":"중간 위험도 경보"}
 {"moduleKey":"persistence","alertId":"ps-16","action":"alert","confidence":0.55,"timestamp":"2026-09-27T15:16:42+09:00","sourceAddress":"198.51.100.53","account":"svc-lab","reason":"중간 위험도 경보"}
+{"moduleKey":"privilege","alertId":"pv-01","action":"block","confidence":0.95,"timestamp":"2026-09-27T09:15:06+09:00","sourceAddress":"203.0.113.11","account":"user01","reason":"관리자 그룹 추가"}
+{"moduleKey":"privilege","alertId":"pv-02","action":"block","confidence":0.93,"timestamp":"2026-09-27T09:15:40+09:00","sourceAddress":"203.0.113.11","account":"user01","reason":"방금 관리자가 된 계정의 활동"}
+{"moduleKey":"privilege","alertId":"pv-03","action":"block","confidence":0.95,"timestamp":"2026-09-27T10:03:12+09:00","sourceAddress":"198.51.100.11","account":"user02","reason":"업무 시간 밖의 관리자 권한 사용"}
+{"moduleKey":"privilege","alertId":"pv-04","action":"block","confidence":0.97,"timestamp":"2026-09-27T10:19:08+09:00","sourceAddress":"192.0.2.11","account":"user03","reason":"관리자 그룹 추가"}
+{"moduleKey":"privilege","alertId":"pv-05","action":"block","confidence":0.95,"timestamp":"2026-09-27T11:06:21+09:00","sourceAddress":"203.0.113.17","account":"user04","reason":"관리자 그룹 추가"}
+{"moduleKey":"privilege","alertId":"pv-06","action":"block","confidence":0.95,"timestamp":"2026-09-27T13:08:02+09:00","sourceAddress":"198.51.100.17","account":"user05","reason":"방금 관리자가 된 계정의 활동"}
+{"moduleKey":"privilege","alertId":"pv-07","action":"block","confidence":0.97,"timestamp":"2026-09-27T14:16:29+09:00","sourceAddress":"192.0.2.17","account":"user06","reason":"관리자 그룹 추가"}
+{"moduleKey":"privilege","alertId":"pv-08","action":"block","confidence":0.93,"timestamp":"2026-09-27T15:02:18+09:00","sourceAddress":"203.0.113.27","account":"user07","reason":"다른 계정의 권한 사용"}
+{"moduleKey":"privilege","alertId":"pv-09","action":"block","confidence":0.95,"timestamp":"2026-09-27T15:33:07+09:00","sourceAddress":"198.51.100.27","account":"user08","reason":"관리자 그룹 추가"}
+{"moduleKey":"privilege","alertId":"pv-10","action":"alert","confidence":0.6,"timestamp":"2026-09-27T09:26:14+09:00","sourceAddress":"192.0.2.54","account":"user01","reason":"관리자 권한 관련 활동"}
+{"moduleKey":"privilege","alertId":"pv-11","action":"alert","confidence":0.6,"timestamp":"2026-09-27T10:14:33+09:00","sourceAddress":"198.51.100.54","account":"user02","reason":"관리자 권한 관련 활동"}
+{"moduleKey":"privilege","alertId":"pv-12","action":"alert","confidence":0.6,"timestamp":"2026-09-27T10:47:09+09:00","sourceAddress":"203.0.113.54","account":"user03","reason":"관리자 권한 관련 활동"}
+{"moduleKey":"privilege","alertId":"pv-13","action":"alert","confidence":0.55,"timestamp":"2026-09-27T11:21:16+09:00","sourceAddress":"192.0.2.55","account":"user04","reason":"중간 위험도 경보"}
+{"moduleKey":"privilege","alertId":"pv-14","action":"alert","confidence":0.6,"timestamp":"2026-09-27T12:06:48+09:00","sourceAddress":"198.51.100.55","account":"user05","reason":"관리자 권한 관련 활동"}
+{"moduleKey":"privilege","alertId":"pv-15","action":"alert","confidence":0.55,"timestamp":"2026-09-27T13:17:05+09:00","sourceAddress":"203.0.113.55","account":"user06","reason":"중간 위험도 경보"}
+{"moduleKey":"privilege","alertId":"pv-16","action":"alert","confidence":0.6,"timestamp":"2026-09-27T14:07:22+09:00","sourceAddress":"192.0.2.56","account":"user07","reason":"관리자 권한 관련 활동"}
+{"moduleKey":"privilege","alertId":"pv-17","action":"alert","confidence":0.55,"timestamp":"2026-09-27T15:19:41+09:00","sourceAddress":"198.51.100.56","account":"user08","reason":"중간 위험도 경보"}

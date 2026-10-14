@@ -313,3 +313,21 @@ npm run xdr:run -- persistence
 ```
 
 시험 fixture 24건 재생 결과는 `block 8 / alert 8 / record 8`, 정상 이벤트 block 0건입니다. 이 결과는 수업용 fixture 자기점검이며 운영 심판 판정을 뜻하지 않습니다.
+
+## 보너스 XDR · 권한 가로채기
+
+기존 `src/decider.mjs` 규칙은 수정하지 않고 `xdr/privilege` 부품을 추가했습니다.
+
+- `read-alerts.mjs`: Wazuh fixture에서 시각·출발 주소·계정·규칙 수준·설명만 추출하고 비밀값처럼 보이는 문자열을 가립니다.
+- `patterns.json`: MITRE ATT&CK T1068·T1078에 근거해 관리자 그룹 추가, 관리자 전환 직후 명령, 업무 시간 밖·낯선 주소의 관리자 사용과 애매한 권한 이벤트를 구분합니다.
+- `decide.mjs`: import·파일 I/O·네트워크 없이 단독 계산하며 명확한 권한 가로채기는 block, 애매한 이벤트는 alert, 정상 활동은 record입니다.
+- `respond.mjs`: 고확신도 block만 **계정 + 출발 주소 세션** 단위로 만료 시각·근거 경보 번호가 있는 `deny-rules.json`에 연결합니다. 동일 세션이 정상 record로 확인되면 회수 후보에서 제외합니다.
+- block/alert는 `xdr/alerts.log`에 기록하고 공용 `xdr-run.mjs`가 `bridge.mjs`를 통해 연결합니다.
+
+재실행:
+
+```bash
+npm run xdr:run -- privilege
+```
+
+시험 fixture 26건 결과는 `block 9 / alert 8 / record 9`, 정상 이벤트 block 0건입니다. 이 결과는 수업용 fixture 자기점검이며 운영 심판 판정을 뜻하지 않습니다.
